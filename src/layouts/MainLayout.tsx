@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { APP_CONFIG } from "@/src/config/app";
+import { APP_CONFIG } from "@/config/app";
 
 type MainLayoutProps = {
   children: ReactNode;

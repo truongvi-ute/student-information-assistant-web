@@ -1,6 +1,6 @@
-import { ActionLink } from "@/src/components/ActionLink";
-import { APP_CONFIG } from "@/src/config/app";
-import { MainLayout } from "@/src/layouts/MainLayout";
+import { ActionLink } from "@/components/ActionLink";
+import { APP_CONFIG } from "@/config/app";
+import { MainLayout } from "@/layouts/MainLayout";
 
 export default function App() {
   return (
