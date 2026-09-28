@@ -1,122 +1,58 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { ActionLink } from "@/components/ActionLink";
+import { APP_CONFIG } from "@/config/app";
+import { MainLayout } from "@/layouts/MainLayout";
 
-function App() {
-  const [count, setCount] = useState(0)
-
+export default function App() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
+    <MainLayout>
+      <main className="home" id="home">
+        <section className="hero" aria-labelledby="hero-title">
+          <p className="eyebrow">{APP_CONFIG.description}</p>
+          <h1 id="hero-title">
+            Hello <span>world</span>
+          </h1>
+          <p className="hero-copy">
+            Chào mừng bạn đến với trợ lý thông tin sinh viên. Mọi điều cần biết
+            cho hành trình học tập của bạn, bắt đầu từ đây.
           </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+          <div className="hero-actions">
+            <ActionLink href="#overview" variant="primary">
+              Khám phá ngay <span aria-hidden="true">↗</span>
+            </ActionLink>
+            <ActionLink href="#about" variant="secondary">
+              Tìm hiểu thêm
+            </ActionLink>
+          </div>
+          <p className="hero-note">
+            <span className="status-dot" aria-hidden="true" />
+            Sẵn sàng đồng hành cùng bạn
+          </p>
+        </section>
 
-      <div className="ticks"></div>
+        <section className="overview" id="overview" aria-label="Tổng quan">
+          <div className="overview-heading">
+            <p className="eyebrow">BẮT ĐẦU THUẬN TIỆN</p>
+            <h2>Một nơi cho những điều quan trọng.</h2>
+          </div>
+          <div className="overview-items">
+            <a className="overview-item" href="#about">
+              <span className="item-number">01</span>
+              <span className="item-label">Thông tin học tập</span>
+              <span className="item-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a className="overview-item" href="mailto:hello@student-assistant.local">
+              <span className="item-number">02</span>
+              <span className="item-label">Hỗ trợ sinh viên</span>
+              <span className="item-arrow" aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </section>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        <section className="about" id="about">
+          <p className="eyebrow">STUDENT INFORMATION ASSISTANT</p>
+          <p>Được thiết kế để việc học tập và tra cứu thông tin trở nên đơn giản hơn.</p>
+        </section>
+      </main>
+    </MainLayout>
+  );
 }
-
-export default App
