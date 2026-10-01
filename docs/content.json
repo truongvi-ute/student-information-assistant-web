@@ -1,0 +1,81 @@
+{
+  "brand": {
+    "primary": "HCMUTE",
+    "secondary": "TLCN AI"
+  },
+  "nav": [
+    "Giới thiệu",
+    "Tính năng",
+    "Hỗ trợ"
+  ],
+  "loginPrompt": "Đã có tài khoản?",
+  "loginButton": "Đăng nhập",
+  "hero": {
+    "badge": "Nền tảng hỗ trợ học tập thông minh",
+    "titleLine1": "Kết nối tri thức",
+    "titleLine2Prefix": "cùng ",
+    "titleAccent": "AI",
+    "description": "HCMUTE TLCN AI đồng hành cùng sinh viên, giảng viên trong hành trình học tập, nghiên cứu và phát triển bản thân với sức mạnh của trí tuệ nhân tạo.",
+    "benefits": [
+      {
+        "title": "Học tập thông minh hơn",
+        "description": "Truy cập tài liệu, hỏi đáp, tóm tắt với AI."
+      },
+      {
+        "title": "Kết nối giảng viên",
+        "description": "Nhận hỗ trợ, tư vấn và định hướng."
+      },
+      {
+        "title": "Phát triển toàn diện",
+        "description": "Nâng cao kỹ năng, mở rộng cơ hội tương lai."
+      }
+    ]
+  },
+  "form": {
+    "title": "Tạo tài khoản",
+    "subtitle": "Bắt đầu hành trình học tập thông minh cùng HCMUTE TLCN AI",
+    "roleLabel": "Tôi là",
+    "roles": [
+      "Sinh viên",
+      "Giảng viên",
+      "Quản trị viên"
+    ],
+    "fields": [
+      {
+        "label": "Họ và tên",
+        "placeholder": "Nguyễn Văn A",
+        "type": "text"
+      },
+      {
+        "label": "Email",
+        "placeholder": "example@hcmute.edu.vn",
+        "type": "email"
+      },
+      {
+        "label": "Mã sinh viên (tùy chọn)",
+        "placeholder": "VD: 22123456",
+        "type": "text"
+      },
+      {
+        "label": "Mật khẩu",
+        "placeholder": "Tạo mật khẩu (ít nhất 8 ký tự)",
+        "type": "password"
+      },
+      {
+        "label": "Xác nhận mật khẩu",
+        "placeholder": "Nhập lại mật khẩu",
+        "type": "password"
+      }
+    ],
+    "consentPrefix": "Tôi đồng ý với",
+    "terms": "Điều khoản sử dụng",
+    "privacy": "Chính sách bảo mật",
+    "consentSuffix": "của HCMUTE TLCN AI",
+    "submit": "Đăng ký tài khoản",
+    "separator": "Hoặc đăng ký nhanh với",
+    "social": [
+      "Google",
+      "Microsoft"
+    ]
+  }
+}
