@@ -5,11 +5,11 @@ import type {
 } from "./types";
 
 /**
- * Immutable Route Paths Definition for the entire application.
- * Centralized source of truth for all URLs.
+ * Định nghĩa hằng số các đường dẫn (Routes) cố định cho toàn bộ ứng dụng.
+ * Là nguồn chân lý duy nhất (Single Source of Truth) quản lý tập trung mọi URL.
  */
 export const ROUTES = {
-  // Authentication routes
+  // Tuyến đường xác thực người dùng (Auth)
   AUTH: {
     LOGIN: "/login",
     REGISTER: "/register",
@@ -19,7 +19,7 @@ export const ROUTES = {
     RESET_PASSWORD: "/reset-password",
   },
 
-  // Public / Landing pages
+  // Trang công khai / Landing pages
   PUBLIC: {
     HOME: "/",
     TERMS: "/terms",
@@ -29,7 +29,7 @@ export const ROUTES = {
     SUPPORT: "#ho-tro",
   },
 
-  // Authenticated Student Portal / App
+  // Cổng thông tin sinh viên sau khi đăng nhập (Portal / App)
   PORTAL: {
     DASHBOARD: "/dashboard",
     CHAT: "/chat",
@@ -41,11 +41,11 @@ export const ROUTES = {
 } as const;
 
 /**
- * Route URL Builders with safe encoding and query parameter generation
+ * Các hàm helper tạo URL an toàn kèm mã hóa tham số truy vấn (Query Parameters)
  */
 
 /**
- * Generates the URL for the OTP verification page
+ * Tạo URL cho trang xác thực mã OTP
  * @example buildVerifyOtpUrl({ email: "student@hcmute.edu.vn" }) => "/verify-otp?email=student%40hcmute.edu.vn"
  */
 export function buildVerifyOtpUrl(options?: VerifyOtpUrlOptions): string {
@@ -59,7 +59,7 @@ export function buildVerifyOtpUrl(options?: VerifyOtpUrlOptions): string {
 }
 
 /**
- * Generates the URL for the registration page with optional step / email query
+ * Tạo URL cho trang đăng ký kèm tham số bước (step) hoặc email
  * @example buildRegisterUrl({ step: "otp", email: "student@hcmute.edu.vn" }) => "/register?step=otp&email=student%40hcmute.edu.vn"
  */
 export function buildRegisterUrl(options?: RegisterUrlOptions): string {
@@ -79,7 +79,7 @@ export function buildRegisterUrl(options?: RegisterUrlOptions): string {
 }
 
 /**
- * Generates the URL for login with optional return redirect target
+ * Tạo URL cho trang đăng nhập kèm trang cần quay lại sau khi đăng nhập (?redirect=...)
  * @example buildLoginUrl({ redirect: "/dashboard" }) => "/login?redirect=%2Fdashboard"
  */
 export function buildLoginUrl(options?: LoginUrlOptions): string {

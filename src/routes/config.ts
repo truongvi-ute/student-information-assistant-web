@@ -2,7 +2,7 @@ import { ROUTES } from "./paths";
 import type { RouteConfig } from "./types";
 
 /**
- * Detailed Metadata Configuration for all Application Routes
+ * Cấu hình thông tin Metadata chi tiết cho toàn bộ các tuyến đường trong hệ thống
  */
 export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
   [ROUTES.PUBLIC.HOME]: {
@@ -85,8 +85,8 @@ export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
 };
 
 /**
- * List of paths restricted exclusively to unauthenticated visitors.
- * If an authenticated user enters these routes, they are redirected to DASHBOARD.
+ * Danh sách các tuyến đường chỉ dành riêng cho khách chưa đăng nhập.
+ * Nếu người dùng đã đăng nhập truy cập vào các trang này, hệ thống sẽ tự động chuyển hướng về DASHBOARD.
  */
 export const AUTH_ONLY_PATHS: readonly string[] = [
   ROUTES.AUTH.LOGIN,
@@ -98,8 +98,8 @@ export const AUTH_ONLY_PATHS: readonly string[] = [
 ];
 
 /**
- * List of paths strictly requiring authenticated sessions.
- * If a guest enters these routes, they are redirected to LOGIN.
+ * Danh sách các tuyến đường bắt buộc phải có phiên đăng nhập hợp lệ.
+ * Nếu khách chưa đăng nhập truy cập, hệ thống sẽ chuyển hướng về trang LOGIN kèm tham số chuyển tiếp.
  */
 export const PROTECTED_PATHS: readonly string[] = [
   ROUTES.PORTAL.DASHBOARD,
@@ -111,7 +111,7 @@ export const PROTECTED_PATHS: readonly string[] = [
 ];
 
 /**
- * List of universally accessible paths.
+ * Danh sách các tuyến đường công khai cho tất cả mọi người.
  */
 export const PUBLIC_PATHS: readonly string[] = [
   ROUTES.PUBLIC.HOME,

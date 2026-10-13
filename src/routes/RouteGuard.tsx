@@ -7,15 +7,15 @@ import { determineRedirect } from "./guards";
 interface RouteGuardProps {
   children: ReactNode;
   /**
-   * User authentication state. If omitted, RouteGuard renders children without redirection.
+   * Trạng thái xác thực của người dùng. Nếu để trống, RouteGuard sẽ hiển thị trang bình thường mà không chuyển hướng.
    */
   isAuthenticated?: boolean;
   /**
-   * Whether the authentication check is currently loading.
+   * Đang trong quá trình kiểm tra trạng thái xác thực hay không.
    */
   isAuthLoading?: boolean;
   /**
-   * Custom loading indicator component.
+   * Giao diện loading tùy chỉnh (nếu muốn thay thế spinner mặc định).
    */
   fallback?: ReactNode;
 }
@@ -30,7 +30,7 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
 
   useEffect(() => {
-    // Wait until auth state finishes loading
+    // Chờ cho đến khi quá trình xác thực hoàn tất kiểm tra
     if (isAuthLoading) {
       setIsAuthorized(false);
       return;
@@ -46,7 +46,7 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
     }
   }, [router.asPath, isAuthenticated, isAuthLoading, router]);
 
-  // If loading or unauthorized during redirect, show fallback or minimal loader
+  // Nếu đang kiểm tra hoặc chưa được cấp quyền trong lúc chuyển hướng, hiển thị giao diện chờ
   if (isAuthLoading || !isAuthorized) {
     if (fallback) {
       return <>{fallback}</>;

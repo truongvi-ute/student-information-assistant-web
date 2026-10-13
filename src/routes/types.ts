@@ -1,18 +1,18 @@
 /**
- * Route access level types:
- * - 'public': Anyone can access (Home, Terms, Privacy, FAQs)
- * - 'auth-only': Only guest / unauthenticated users can access (Login, Register, Verify OTP).
- *                If an authenticated user visits, they are redirected to Dashboard.
- * - 'protected': Requires authenticated user (Dashboard, Chat, Profile, Academic Records).
- *                If unauthenticated, redirects to Login with return redirect query.
- * - 'admin': Requires administrative privileges.
+ * Cấp độ quyền truy cập tuyến đường:
+ * - 'public': Bất kỳ ai cũng có thể truy cập (Trang chủ, Điều khoản, Chính sách bảo mật...).
+ * - 'auth-only': Chỉ dành cho khách / người dùng chưa đăng nhập (Đăng nhập, Đăng ký, Xác thực OTP).
+ *                Nếu người đã đăng nhập truy cập, hệ thống sẽ tự chuyển hướng về Dashboard.
+ * - 'protected': Bắt buộc phải đăng nhập (Dashboard, Chat AI, Hồ sơ, Tra cứu...).
+ *                Nếu chưa đăng nhập, hệ thống sẽ chuyển hướng về trang Đăng nhập kèm tham số ?redirect=.
+ * - 'admin': Yêu cầu quyền quản trị viên hệ thống.
  */
 export type RouteAccessType = "public" | "auth-only" | "protected" | "admin";
 
 export type LayoutType = "auth" | "main" | "dashboard" | "none";
 
 /**
- * Route configuration definition with metadata
+ * Cấu hình thông tin metadata chi tiết cho từng tuyến đường
  */
 export interface RouteConfig {
   path: string;
@@ -25,7 +25,7 @@ export interface RouteConfig {
 }
 
 /**
- * Options for generating route URLs
+ * Tùy chọn tham số khi sinh URL các trang điều hướng
  */
 export interface VerifyOtpUrlOptions {
   email?: string;

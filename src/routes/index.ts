@@ -1,17 +1,17 @@
 /**
- * Application Routes Module
+ * Module Tuyến Đường Ứng Dụng (Application Routes)
  * 
- * Provides centralized routing constants, URL builders, metadata configurations,
- * access control guards, and RouteGuard components.
+ * Cung cấp hằng số định tuyến tập trung, các hàm sinh URL an toàn,
+ * cấu hình metadata, hàm kiểm tra quyền truy cập và component RouteGuard.
  * 
  * @example
  * ```ts
  * import { ROUTES, buildVerifyOtpUrl, isProtectedRoute } from "@/routes";
  * 
- * // Access route constants
+ * // Sử dụng hằng số URL
  * const loginPath = ROUTES.AUTH.LOGIN;
  * 
- * // Generate safe dynamic URL
+ * // Sinh URL động an toàn kèm tham số
  * const otpUrl = buildVerifyOtpUrl({ email: "student@hcmute.edu.vn" });
  * ```
  */
