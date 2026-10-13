@@ -82,6 +82,13 @@ export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
     layout: "dashboard",
     description: "Thông tin cá nhân, chuyên ngành, hệ đào tạo và niên khóa.",
   },
+  [ROUTES.AUTH.FORGOT_PASSWORD]: {
+    path: ROUTES.AUTH.FORGOT_PASSWORD,
+    title: "Khôi phục mật khẩu — HCMUTE Student Assistant",
+    access: "auth-only",
+    layout: "auth",
+    description: "Khôi phục mật khẩu tài khoản sinh viên HCMUTE qua mã xác thực OTP.",
+  },
 };
 
 /**

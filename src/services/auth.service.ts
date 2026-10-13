@@ -8,6 +8,12 @@ import type {
   OtpResendCooldownResponse,
   VerifyRegistrationRequest,
   UserProfile,
+  ForgotPasswordRequest,
+  ForgotPasswordResponse,
+  VerifyForgotPasswordOtpRequest,
+  ForgotPasswordOtpVerificationResponse,
+  ResetPasswordRequest,
+  MessageResponse,
 } from "@/types/auth.types";
 
 export const authService = {
@@ -113,4 +119,50 @@ export const authService = {
 
     return response;
   },
+
+  /**
+   * Bước 1: Gửi yêu cầu OTP quên mật khẩu về email sinh viên
+   */
+  async forgotPassword(
+    data: ForgotPasswordRequest
+  ): Promise<ForgotPasswordResponse> {
+    return apiClient.post<ForgotPasswordResponse>(
+      "/auth/forgot-password",
+      {
+        email: data.email.trim().toLowerCase(),
+      }
+    );
+  },
+
+  /**
+   * Bước 2: Xác thực mã OTP 6 số để nhận resetToken
+   */
+  async verifyForgotPasswordOtp(
+    data: VerifyForgotPasswordOtpRequest
+  ): Promise<ForgotPasswordOtpVerificationResponse> {
+    return apiClient.post<ForgotPasswordOtpVerificationResponse>(
+      "/auth/forgot-password/verify",
+      {
+        email: data.email.trim().toLowerCase(),
+        otp: data.otp.trim(),
+      }
+    );
+  },
+
+  /**
+   * Bước 3: Đặt lại mật khẩu mới cùng với resetToken
+   */
+  async resetPassword(
+    data: ResetPasswordRequest
+  ): Promise<MessageResponse> {
+    return apiClient.post<MessageResponse>(
+      "/auth/reset-password",
+      {
+        resetToken: data.resetToken.trim(),
+        newPassword: data.newPassword,
+        confirmPassword: data.confirmPassword,
+      }
+    );
+  },
+
 };
