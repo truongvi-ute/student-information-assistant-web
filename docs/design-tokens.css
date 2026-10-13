@@ -1,0 +1,39 @@
+:root {
+  --reg-canvas-w: 1448;
+  --reg-canvas-h: 1086;
+
+  --navy-950: #071a3d;
+  --navy-900: #0b234f;
+  --navy-800: #12376f;
+  --text-on-dark: #f8fbff;
+  --text-muted-dark: #b8c7e0;
+
+  --ink-950: #0b1f4a;
+  --ink-800: #16366c;
+  --ink-600: #60769f;
+  --surface: #ffffff;
+  --surface-soft: #f9fbff;
+  --border: #dce5f2;
+  --border-strong: #c8d7ea;
+
+  --blue: #2f7df7;
+  --indigo: #4c5cff;
+  --violet: #8f4cff;
+  --cyan: #24d4e8;
+  --purple: #b069ff;
+  --yellow: #ffd24e;
+
+  --cta-gradient: linear-gradient(90deg,#2f8df7 0%,#4a5cff 52%,#9347f4 100%);
+  --ai-gradient: linear-gradient(135deg,#4e76ff 0%,#9157ff 100%);
+
+  --radius-card: 20px;
+  --radius-control: 9px;
+  --radius-chip: 999px;
+  --shadow-card: 0 26px 70px rgba(8,31,75,.22), 0 3px 16px rgba(14,40,92,.10);
+
+  --ease-ui: cubic-bezier(.2,.8,.2,1);
+  --duration-fast: 150ms;
+}
+
+.registration-page * { box-sizing: border-box; }
+.registration-page { margin: 0; min-height: 100dvh; }
