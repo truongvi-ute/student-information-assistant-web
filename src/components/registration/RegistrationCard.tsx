@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { ROUTES } from "@/routes";
 import {
@@ -14,11 +12,7 @@ import {
 import { FormField } from "./FormField";
 import { PasswordField } from "./PasswordField";
 import { SocialButton } from "./SocialButton";
-
-import { authService } from "@/services/auth.service";
-import { ApiClientError } from "@/lib/api/api-error";
-
-import type { RegisterRequest } from "@/types/auth.types";
+import { useRegister } from "@/hooks/useRegister";
 
 interface RegistrationCardProps {
   onSubmitSuccess?: (data?: { email: string; resendAvailableInSeconds?: number }) => void;
@@ -29,133 +23,25 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
   onSubmitSuccess,
   onSwitchToLogin,
 }) => {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [studentId, setStudentId] = useState("");
+  const {
+    fullName,
+    setFullName,
+    email,
+    setEmail,
+    studentId,
+    setStudentId,
+    password,
+    setPassword,
+    confirmPassword,
+    setConfirmPassword,
+    consent,
+    setConsent,
+    isLoading,
+    errorMessage,
+    successMessage,
+    handleRegister,
+  } = useRegister({ onSubmitSuccess });
 
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
-
-  const [consent, setConsent] = useState(false);
-
-  const [isLoading, setIsLoading] =
-    useState(false);
-
-  const [errorMessage, setErrorMessage] =
-    useState("");
-
-  const [successMessage, setSuccessMessage] =
-    useState("");
-
-  const handleRegister = async (
-    event: React.FormEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault();
-
-    // Ngăn submit liên tục
-    if (isLoading) {
-      return;
-    }
-
-    setErrorMessage("");
-    setSuccessMessage("");
-
-    // 1. Kiểm tra điều khoản
-    if (!consent) {
-      setErrorMessage(
-        "Vui lòng đồng ý với Điều khoản sử dụng và Chính sách bảo mật.",
-      );
-      return;
-    }
-
-    // 2. Validate dữ liệu cơ bản
-    if (
-      !fullName.trim() ||
-      !email.trim() ||
-      !password ||
-      !confirmPassword
-    ) {
-      setErrorMessage(
-        "Vui lòng nhập đầy đủ thông tin bắt buộc.",
-      );
-      return;
-    }
-
-    // 2b. Validate định dạng email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      setErrorMessage("Địa chỉ email không đúng định dạng.");
-      return;
-    }
-
-    // 3. Validate password
-    if (password.length < 8) {
-      setErrorMessage(
-        "Mật khẩu phải có ít nhất 8 ký tự.",
-      );
-      return;
-    }
-
-    // 4. Confirm password chỉ kiểm tra frontend
-    if (password !== confirmPassword) {
-      setErrorMessage(
-        "Mật khẩu xác nhận không khớp.",
-      );
-      return;
-    }
-
-    // 5. Mapping UI -> RegisterRequest
-    const payload: RegisterRequest = {
-      fullName: fullName.trim(),
-      email: email.trim().toLowerCase(),
-      password,
-
-      majorId: null,
-      educationSystemId: null,
-      cohortId: null,
-      academicContext: studentId.trim() || null,
-    };
-
-    try {
-      setIsLoading(true);
-
-      // 6. Gọi POST /register
-      const response = await authService.register(payload);
-
-      const cooldown =
-        response?.resendAvailableInSeconds ||
-        (response as any)?.data?.resendAvailableInSeconds ||
-        60;
-
-      setSuccessMessage(response?.message || "Đăng ký thành công! Mã OTP đã được gửi đến email.");
-
-      /*
-       * 7. Chuyển sang bước nhập OTP với email và cooldown
-       */
-      onSubmitSuccess?.({
-        email: payload.email,
-        resendAvailableInSeconds: cooldown,
-      });
-    } catch (error: unknown) {
-      // 8. Lỗi từ backend/API
-      if (error instanceof ApiClientError) {
-        setErrorMessage(error.message);
-        return;
-      }
-      if (error instanceof Error) {
-        setErrorMessage(error.message);
-        return;
-      }
-
-      // 9. Lỗi ngoài dự kiến
-      setErrorMessage(
-        "Đã xảy ra lỗi không xác định. Vui lòng thử lại sau.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <div className="w-full max-w-[400px] flex flex-col z-20 text-white">

@@ -14,7 +14,7 @@ import type {
   ForgotPasswordOtpVerificationResponse,
   ResetPasswordRequest,
   MessageResponse,
-} from "@/types/auth.types";
+} from "@/types/auth";
 
 export const authService = {
   /**

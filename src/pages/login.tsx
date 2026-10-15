@@ -2,8 +2,8 @@ import React from "react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 
-const LoginPage = dynamic(
-  () => import("@/components/login/LoginPage").then((mod) => mod.LoginPage),
+const LoginView = dynamic(
+  () => import("@/components/login/LoginView").then((mod) => mod.LoginView),
   {
     ssr: false,
     loading: () => (
@@ -15,7 +15,7 @@ const LoginPage = dynamic(
   }
 );
 
-export default function Login() {
+export default function LoginPage() {
   return (
     <>
       <Head>
@@ -26,7 +26,7 @@ export default function Login() {
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
-      <LoginPage />
+      <LoginView />
     </>
   );
 }

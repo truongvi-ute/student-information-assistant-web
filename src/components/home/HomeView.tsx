@@ -1,8 +1,9 @@
+import React from "react";
 import { ActionLink } from "@/components/ActionLink";
 import { APP_CONFIG } from "@/config/app";
 import { MainLayout } from "@/layouts/MainLayout";
 
-export default function App() {
+export const HomeView: React.FC = () => {
   return (
     <MainLayout>
       <main className="home" id="home">
@@ -55,4 +56,4 @@ export default function App() {
       </main>
     </MainLayout>
   );
-}
+};

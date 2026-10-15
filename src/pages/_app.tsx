@@ -1,7 +1,9 @@
 import type { AppProps } from "next/app";
 import Head from "next/head";
 import { sourceSans3 } from "@/styles/fonts";
-import "@/assets/registration.css";
+import "@/styles/globals.css";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { RouteGuard } from "@/routes/RouteGuard";
 
 export default function NextApp({ Component, pageProps }: AppProps) {
   return (
@@ -11,7 +13,11 @@ export default function NextApp({ Component, pageProps }: AppProps) {
         <meta name="description" content="Trợ lý thông tin dành cho sinh viên" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
-      <Component {...pageProps} />
+      <AuthProvider>
+        <RouteGuard>
+          <Component {...pageProps} />
+        </RouteGuard>
+      </AuthProvider>
     </div>
   );
 }

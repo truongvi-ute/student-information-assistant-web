@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { authService } from "@/services/auth.service";
 import { ApiClientError } from "@/lib/api/api-error";
-import type { ForgotPasswordStep } from "@/types/auth.types";
+import { isValidEmail } from "@/validations/auth.validation";
+import type { ForgotPasswordStep } from "@/types/auth";
 
 export interface UseForgotPasswordReturn {
   step: ForgotPasswordStep;
@@ -56,12 +57,11 @@ export function useForgotPassword(initialEmail: string = ""): UseForgotPasswordR
   const requestOtp = async (inputEmail: string): Promise<boolean> => {
     const trimmedEmail = inputEmail.trim().toLowerCase();
 
-    // Validate email cơ bản
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
+    if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
       setError("Vui lòng nhập địa chỉ email hợp lệ.");
       return false;
     }
+
 
     setIsLoading(true);
     setError(null);

@@ -1,8 +1,5 @@
-"use client";
-
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
-import { useRouter } from "next/router";
 import { ROUTES } from "@/routes";
 import { buildVerifyOtpUrl } from "@/routes/paths";
 import {
@@ -17,9 +14,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { SocialButton } from "@/components/registration/SocialButton";
-import { authService } from "@/services/auth.service";
-import { authStorage } from "@/utils/auth-storage";
-import { ApiClientError } from "@/lib/api/api-error";
+import { useLogin } from "@/hooks/useLogin";
 
 interface LoginCardProps {
   onLoginSuccess?: () => void;
@@ -30,104 +25,24 @@ export const LoginCard: React.FC<LoginCardProps> = ({
   onLoginSuccess,
   onSwitchToRegister,
 }) => {
-  const router = useRouter();
+  const {
+    identifier,
+    setIdentifier,
+    password,
+    setPassword,
+    showPassword,
+    toggleShowPassword,
+    rememberMe,
+    setRememberMe,
+    isLoading,
+    errorMessage,
+    setErrorMessage,
+    successMessage,
+    needsVerification,
+    handleLogin,
+  } = useLogin({ onLoginSuccess });
 
-  const [identifier, setIdentifier] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [rememberMe, setRememberMe] = useState<boolean>(true);
 
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string>("");
-  const [successMessage, setSuccessMessage] = useState<string>("");
-  const [needsVerification, setNeedsVerification] = useState<boolean>(false);
-
-  // Initialize email from query or remembered storage
-  useEffect(() => {
-    if (typeof router.query.email === "string" && router.query.email) {
-      setIdentifier(router.query.email);
-    } else {
-      const savedEmail = authStorage.getRememberedEmail();
-      if (savedEmail) {
-        setIdentifier(savedEmail);
-        setRememberMe(true);
-      }
-    }
-  }, [router.query.email]);
-
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (isLoading) return;
-
-    setErrorMessage("");
-    setSuccessMessage("");
-    setNeedsVerification(false);
-
-    const trimmedIdentifier = identifier.trim();
-
-    if (!trimmedIdentifier) {
-      setErrorMessage("Vui lòng nhập Email sinh viên hoặc Mã số sinh viên (MSSV).");
-      return;
-    }
-
-    if (!password) {
-      setErrorMessage("Vui lòng nhập mật khẩu.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setErrorMessage("Mật khẩu phải có ít nhất 6 ký tự.");
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-
-      const response = await authService.login({
-        email: trimmedIdentifier,
-        password,
-        rememberMe,
-      });
-
-      setSuccessMessage(response?.message || "Đăng nhập thành công! Đang chuyển hướng...");
-
-      // Determine redirect target (prioritize query param ?redirect=...)
-      const redirectTarget =
-        typeof router.query.redirect === "string" && router.query.redirect
-          ? decodeURIComponent(router.query.redirect)
-          : ROUTES.PORTAL.CHAT;
-
-      if (onLoginSuccess) {
-        onLoginSuccess();
-      }
-
-      setTimeout(() => {
-        router.push(redirectTarget);
-      }, 1000);
-    } catch (err: unknown) {
-      if (err instanceof ApiClientError) {
-        setErrorMessage(err.message);
-
-        // Detect unverified account state from error code or text
-        const isUnverified =
-          err.error?.code === "ACCOUNT_NOT_VERIFIED" ||
-          err.error?.code === "EMAIL_NOT_VERIFIED" ||
-          err.message.toLowerCase().includes("kích hoạt") ||
-          err.message.toLowerCase().includes("xác thực") ||
-          err.message.toLowerCase().includes("unverified");
-
-        if (isUnverified) {
-          setNeedsVerification(true);
-        }
-      } else if (err instanceof Error) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage("Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.");
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <div className="w-full max-w-[400px] flex flex-col z-20 text-white">
@@ -200,8 +115,9 @@ export const LoginCard: React.FC<LoginCardProps> = ({
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={toggleShowPassword}
                 className="absolute right-3 p-1 text-slate-300 hover:text-white transition-colors rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-blue-400 cursor-pointer"
+
                 aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
               >
                 {showPassword ? (

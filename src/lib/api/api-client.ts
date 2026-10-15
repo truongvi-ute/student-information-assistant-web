@@ -1,7 +1,4 @@
-import {
-  ApiErrorResponse,
-  ApiSuccessResponse,
-} from "@/lib/api/api-types";
+import type { ApiErrorResponse } from "@/types/api";
 
 import { ApiClientError } from "@/lib/api/api-error";
 import { authStorage } from "@/utils/auth-storage";
@@ -47,7 +44,7 @@ async function request<T>(
     );
   }
 
-  let body: any;
+  let body: unknown;
   const contentType = response.headers.get("content-type");
   if (contentType && contentType.includes("application/json")) {
     try {
@@ -71,8 +68,15 @@ async function request<T>(
     return text as unknown as T;
   }
 
-  if (!response.ok || body.success === false) {
-    const errorResponse = body as ApiErrorResponse;
+  const isFailedResponse =
+    !response.ok ||
+    (typeof body === "object" &&
+      body !== null &&
+      "success" in body &&
+      (body as { success?: boolean }).success === false);
+
+  if (isFailedResponse) {
+    const errorResponse = body as ApiErrorResponse | undefined;
 
     throw new ApiClientError(
       response.status,
@@ -82,6 +86,7 @@ async function request<T>(
   }
 
   return body as T;
+
 }
 
 export const apiClient = {

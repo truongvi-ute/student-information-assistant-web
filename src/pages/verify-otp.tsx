@@ -2,8 +2,8 @@ import React from "react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 
-const OtpPage = dynamic(
-  () => import("@/components/otp/OtpPage").then((mod) => mod.OtpPage),
+const OtpView = dynamic(
+  () => import("@/components/otp/OtpView").then((mod) => mod.OtpView),
   {
     ssr: false,
     loading: () => (
@@ -15,7 +15,7 @@ const OtpPage = dynamic(
   }
 );
 
-export default function VerifyOtp() {
+export default function VerifyOtpPage() {
   return (
     <>
       <Head>
@@ -26,7 +26,7 @@ export default function VerifyOtp() {
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
-      <OtpPage />
+      <OtpView />
     </>
   );
 }

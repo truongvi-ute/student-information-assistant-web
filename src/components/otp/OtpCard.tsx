@@ -1,8 +1,5 @@
-"use client";
-
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
-import { useRouter } from "next/router";
 import { ROUTES } from "@/routes";
 import {
   ShieldCheck,
@@ -16,10 +13,7 @@ import {
   Edit2,
 } from "lucide-react";
 import { OtpInput } from "./OtpInput";
-
-import { authService } from "@/services/auth.service";
-import { ApiClientError } from "@/lib/api/api-error";
-import { buildLoginUrl } from "@/routes/paths";
+import { useOtp } from "@/hooks/useOtp";
 
 interface OtpCardProps {
   initialEmail?: string;
@@ -36,115 +30,26 @@ export const OtpCard: React.FC<OtpCardProps> = ({
   onResendOtp,
   onBackToRegister,
 }) => {
-  const router = useRouter();
-  const queryEmail = typeof router.query.email === "string" ? router.query.email : "";
+  const {
+    email,
+    otp,
+    setOtp,
+    isLoading,
+    isResending,
+    cooldown,
+    errorMessage,
+    setErrorMessage,
+    successMessage,
+    formatSeconds,
+    handleVerify,
+    handleResend,
+  } = useOtp({
+    initialEmail,
+    initialCooldown,
+    onVerifySuccess,
+    onResendOtp,
+  });
 
-  // Email state: prefer prop, then query param, then fallback
-  const [email, setEmail] = useState<string>(
-    initialEmail || queryEmail || "sinhvien@hcmute.edu.vn"
-  );
-
-  useEffect(() => {
-    if (queryEmail && !initialEmail) {
-      setEmail(queryEmail);
-    }
-  }, [queryEmail, initialEmail]);
-
-  const [otp, setOtp] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isResending, setIsResending] = useState<boolean>(false);
-  const [cooldown, setCooldown] = useState<number>(initialCooldown);
-  const [errorMessage, setErrorMessage] = useState<string>("");
-  const [successMessage, setSuccessMessage] = useState<string>("");
-
-  // Countdown timer for resend OTP
-  useEffect(() => {
-    if (cooldown <= 0) return;
-
-    const timer = setInterval(() => {
-      setCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [cooldown]);
-
-  const formatSeconds = (sec: number): string => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  };
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isLoading) return;
-
-    setErrorMessage("");
-    setSuccessMessage("");
-
-    if (otp.length < 6) {
-      setErrorMessage("Vui lòng nhập đầy đủ 6 chữ số mã OTP.");
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-
-      if (onVerifySuccess) {
-        await onVerifySuccess();
-      } else {
-        await authService.verifyRegistration({ email, otp });
-        setSuccessMessage(
-          "Xác thực tài khoản thành công! Đang chuyển hướng..."
-        );
-        setTimeout(() => {
-          router.push(buildLoginUrl({ email }));
-        }, 1500);
-      }
-    } catch (err: unknown) {
-      if (err instanceof ApiClientError) {
-        setErrorMessage(err.message);
-      } else if (err instanceof Error) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage("Mã xác thực không chính xác hoặc đã hết hạn.");
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    if (cooldown > 0 || isResending) return;
-
-    setErrorMessage("");
-    setSuccessMessage("");
-    setIsResending(true);
-
-    try {
-      if (onResendOtp) {
-        await onResendOtp(email);
-        setCooldown(60);
-        setSuccessMessage("Mã OTP mới đã được gửi lại vào email của bạn.");
-      } else {
-        const response = await authService.resendRegistrationOtp(email);
-        const waitSec = response?.resendAvailableInSeconds || 60;
-        setCooldown(waitSec);
-        setSuccessMessage(
-          response?.message || "Mã OTP mới đã được gửi lại vào email của bạn."
-        );
-      }
-    } catch (err: unknown) {
-      if (err instanceof ApiClientError) {
-        setErrorMessage(err.message);
-      } else if (err instanceof Error) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage("Không thể gửi lại mã OTP. Vui lòng thử lại sau.");
-      }
-    } finally {
-      setIsResending(false);
-    }
-  };
 
   return (
     <div className="w-full max-w-[400px] flex flex-col z-20 text-white">

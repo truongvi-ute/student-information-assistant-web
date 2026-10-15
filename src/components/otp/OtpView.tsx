@@ -1,15 +1,13 @@
-"use client";
-
 import React from "react";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import { OtpCard } from "./OtpCard";
 
-interface OtpPageProps {
+interface OtpViewProps {
   email?: string;
   cooldown?: number;
 }
 
-export const OtpPage: React.FC<OtpPageProps> = ({ email, cooldown }) => {
+export const OtpView: React.FC<OtpViewProps> = ({ email, cooldown }) => {
   return (
     <AuthLayout
       title="Xác thực mã OTP — HCMUTE Student Assistant"
@@ -19,3 +17,6 @@ export const OtpPage: React.FC<OtpPageProps> = ({ email, cooldown }) => {
     </AuthLayout>
   );
 };
+
+// Bí danh tương thích
+export { OtpView as OtpPage };

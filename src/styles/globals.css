@@ -86,7 +86,7 @@ body,
   transform: translateY(1px);
 }
 
-/* Custom scrollbar reset for registration and login pages (hide scrollbar, keep scrolling) */
+/* Tối ưu thanh cuộn cho toàn bộ ứng dụng */
 html:has(.registration-scope),
 body:has(.registration-scope),
 html.no-scrollbar,
@@ -113,7 +113,7 @@ body.no-scrollbar::-webkit-scrollbar,
   background: transparent !important;
 }
 
-/* Hide Next.js dev overlay indicator during visual QA screenshots */
+/* Ẩn chỉ báo overlay khi ở chế độ dev */
 nextjs-portal,
 [data-nextjs-toast],
 nextjs-dev-overlay,
