@@ -1,16 +1,15 @@
-import type { UserProfile } from "@/types/auth.types";
+import type { UserProfile } from "@/types/auth";
 
 const AUTH_TOKEN_KEY = "hcmute_auth_token";
 const REFRESH_TOKEN_KEY = "hcmute_refresh_token";
 const USER_PROFILE_KEY = "hcmute_user_profile";
 const REMEMBERED_EMAIL_KEY = "hcmute_remembered_email";
 
-/**
- * Safe local storage wrapper that checks SSR environment.
- */
+// Kiểm tra môi trường chạy ở phía trình duyệt (client)
 function isClient(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
+
 
 export const authStorage = {
   getToken(): string | null {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { AuthLayout } from "@/layouts/AuthLayout";
@@ -23,44 +23,31 @@ export const AuthContainer: React.FC<AuthContainerProps> = ({
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
 
-  const [mode, setMode] = useState<AuthMode>(initialMode);
-  const [step, setStep] = useState<AuthStep>("FORM");
-  const [direction, setDirection] = useState<number>(initialMode === "login" ? 1 : -1);
+  // Xác định chế độ hiển thị và bước từ URL
+  const mode: AuthMode = router.pathname.includes("/register")
+    ? "register"
+    : router.pathname.includes("/login")
+    ? "login"
+    : initialMode;
 
-  const [otpEmail, setOtpEmail] = useState<string>("");
+  const isOtpStep = router.query.step === "otp" || router.query.step === "OTP";
+  const step: AuthStep = isOtpStep ? "OTP" : "FORM";
+
+  const [direction, setDirection] = useState<number>(initialMode === "login" ? 1 : -1);
+  const [customOtpEmail, setCustomOtpEmail] = useState<string>("");
   const [otpCooldown, setOtpCooldown] = useState<number>(60);
 
-  // Sync mode with route changes and router queries
-  useEffect(() => {
-    if (router.pathname.includes("/register")) {
-      setMode("register");
-    } else if (router.pathname.includes("/login")) {
-      setMode("login");
-    }
+  const queryEmail = typeof router.query.email === "string" ? router.query.email : "";
+  const otpEmail = customOtpEmail || queryEmail;
 
-    if (router.query.step === "otp" || router.query.step === "OTP") {
-      setStep("OTP");
-    } else {
-      setStep("FORM");
-    }
-
-    if (typeof router.query.email === "string" && router.query.email) {
-      setOtpEmail(router.query.email);
-    }
-  }, [router.pathname, router.query]);
-
-  // Smooth switch handlers (Shallow routing to avoid full page reloads while animating 60fps)
+  // Điều hướng chuyển đổi mượt mà giữa Đăng nhập và Đăng ký
   const handleSwitchToRegister = () => {
     setDirection(1);
-    setMode("register");
-    setStep("FORM");
     router.push(ROUTES.AUTH.REGISTER, undefined, { shallow: true });
   };
 
   const handleSwitchToLogin = () => {
     setDirection(-1);
-    setMode("login");
-    setStep("FORM");
     router.push(ROUTES.AUTH.LOGIN, undefined, { shallow: true });
   };
 
@@ -68,10 +55,9 @@ export const AuthContainer: React.FC<AuthContainerProps> = ({
     email: string;
     resendAvailableInSeconds?: number;
   }) => {
-    if (data?.email) setOtpEmail(data.email);
+    if (data?.email) setCustomOtpEmail(data.email);
     if (data?.resendAvailableInSeconds) setOtpCooldown(data.resendAvailableInSeconds);
     setDirection(1);
-    setStep("OTP");
 
     router.push(
       {
@@ -85,9 +71,9 @@ export const AuthContainer: React.FC<AuthContainerProps> = ({
 
   const handleBackToRegisterForm = () => {
     setDirection(-1);
-    setStep("FORM");
     router.push(ROUTES.AUTH.REGISTER, undefined, { shallow: true });
   };
+
 
   const cardVariants = shouldReduceMotion ? accessibleAuthCardVariants : authCardVariants;
 

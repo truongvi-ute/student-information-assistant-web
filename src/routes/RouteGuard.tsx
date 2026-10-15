@@ -1,53 +1,43 @@
-"use client";
-
-import React, { useEffect, useState, ReactNode } from "react";
+import React, { useEffect, ReactNode } from "react";
 import { useRouter } from "next/router";
-import { determineRedirect } from "./guards";
+import { determineRedirect, isPublicRoute } from "./guards";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface RouteGuardProps {
   children: ReactNode;
-  /**
-   * Trạng thái xác thực của người dùng. Nếu để trống, RouteGuard sẽ hiển thị trang bình thường mà không chuyển hướng.
-   */
   isAuthenticated?: boolean;
-  /**
-   * Đang trong quá trình kiểm tra trạng thái xác thực hay không.
-   */
   isAuthLoading?: boolean;
-  /**
-   * Giao diện loading tùy chỉnh (nếu muốn thay thế spinner mặc định).
-   */
   fallback?: ReactNode;
 }
 
 export const RouteGuard: React.FC<RouteGuardProps> = ({
   children,
-  isAuthenticated = false,
-  isAuthLoading = false,
+  isAuthenticated: propIsAuthenticated,
+  isAuthLoading: propIsAuthLoading,
   fallback,
 }) => {
   const router = useRouter();
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+  const auth = useAuth();
+
+  const isAuthenticated = propIsAuthenticated ?? auth.isAuthenticated;
+  const isAuthLoading = propIsAuthLoading ?? auth.isLoading;
+
+  const isPublic = isPublicRoute(router.asPath);
+  const redirectTarget = !isAuthLoading && !isPublic ? determineRedirect(router.asPath, isAuthenticated) : null;
 
   useEffect(() => {
-    // Chờ cho đến khi quá trình xác thực hoàn tất kiểm tra
-    if (isAuthLoading) {
-      setIsAuthorized(false);
-      return;
-    }
-
-    const redirectTarget = determineRedirect(router.asPath, isAuthenticated);
-
     if (redirectTarget) {
-      setIsAuthorized(false);
       router.replace(redirectTarget);
-    } else {
-      setIsAuthorized(true);
     }
-  }, [router.asPath, isAuthenticated, isAuthLoading, router]);
+  }, [redirectTarget, router]);
 
-  // Nếu đang kiểm tra hoặc chưa được cấp quyền trong lúc chuyển hướng, hiển thị giao diện chờ
-  if (isAuthLoading || !isAuthorized) {
+  // Cho phép render ngay lập tức đối với các trang công khai
+  if (isPublic) {
+    return <>{children}</>;
+  }
+
+  // Hiển thị màn hình chờ khi đang kiểm tra phiên hoặc đang chuyển hướng
+  if (isAuthLoading || redirectTarget) {
     if (fallback) {
       return <>{fallback}</>;
     }

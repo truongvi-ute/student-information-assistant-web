@@ -2,10 +2,10 @@ import React from "react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 
-const RegistrationPage = dynamic(
+const RegistrationView = dynamic(
   () =>
-    import("@/components/registration/RegistrationPage").then(
-      (mod) => mod.RegistrationPage
+    import("@/components/registration/RegistrationView").then(
+      (mod) => mod.RegistrationView
     ),
   {
     ssr: false,
@@ -18,7 +18,7 @@ const RegistrationPage = dynamic(
   }
 );
 
-export default function Register() {
+export default function RegisterPage() {
   return (
     <>
       <Head>
@@ -29,7 +29,7 @@ export default function Register() {
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
-      <RegistrationPage />
+      <RegistrationView />
     </>
   );
 }

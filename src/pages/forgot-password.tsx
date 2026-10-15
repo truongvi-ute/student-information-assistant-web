@@ -2,10 +2,10 @@ import React from "react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 
-const ForgotPasswordPage = dynamic(
+const ForgotPasswordView = dynamic(
   () =>
-    import("@/components/forgot-password/ForgotPasswordPage").then(
-      (mod) => mod.ForgotPasswordPage
+    import("@/components/forgot-password/ForgotPasswordView").then(
+      (mod) => mod.ForgotPasswordView
     ),
   {
     ssr: false,
@@ -18,7 +18,7 @@ const ForgotPasswordPage = dynamic(
   }
 );
 
-export default function ForgotPassword() {
+export default function ForgotPasswordPage() {
   return (
     <>
       <Head>
@@ -29,7 +29,7 @@ export default function ForgotPassword() {
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
-      <ForgotPasswordPage />
+      <ForgotPasswordView />
     </>
   );
 }
