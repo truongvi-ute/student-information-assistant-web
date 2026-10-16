@@ -6,7 +6,7 @@ import { ROUTES } from "@/routes";
 
 export const SiteHeader: React.FC = () => {
   const router = useRouter();
-  const isLoginPage = router.pathname.includes("/login");
+  const isLoginPage = router.pathname === ROUTES.AUTH.LOGIN;
 
   const promptText = isLoginPage ? "Chưa có tài khoản?" : "Đã có tài khoản?";
   const actionText = isLoginPage ? "Đăng ký" : "Đăng nhập";
@@ -33,7 +33,7 @@ export const SiteHeader: React.FC = () => {
           <BookOpen className="w-[32px] h-[32px] text-white stroke-[2.2]" aria-hidden="true" />
           <span className="font-bold text-[20px] tracking-wide text-white ml-0.5">HCMUTE</span>
           <span className="text-white/40 text-[18px] font-light mx-1" aria-hidden="true">|</span>
-          <span className="font-semibold text-[18px] text-white tracking-tight">STUDENT ASSITANT</span>
+          <span className="font-semibold text-[18px] text-white tracking-tight">STUDENT ASSISTANT</span>
         </Link>
 
         {/* Right: Combined Navigation and Auth Action (Keeps center 100% clear over the building) */}
@@ -49,19 +49,21 @@ export const SiteHeader: React.FC = () => {
             aria-label="Điều hướng chính"
           >
             <Link
-              href={ROUTES.PUBLIC.ABOUT}
+              href={`${ROUTES.PUBLIC.HOME}${ROUTES.PUBLIC.ABOUT}`}
               className="text-white/85 hover:text-white font-medium text-[14.5px] transition-colors"
             >
               Giới thiệu
             </Link>
+
             <Link
-              href={ROUTES.PUBLIC.FEATURES}
+              href={`${ROUTES.PUBLIC.HOME}${ROUTES.PUBLIC.FEATURES}`}
               className="text-white/85 hover:text-white font-medium text-[14.5px] transition-colors"
             >
               Tính năng
             </Link>
+
             <Link
-              href={ROUTES.PUBLIC.SUPPORT}
+              href={`${ROUTES.PUBLIC.HOME}${ROUTES.PUBLIC.SUPPORT}`}
               className="text-white/85 hover:text-white font-medium text-[14.5px] transition-colors"
             >
               Hỗ trợ

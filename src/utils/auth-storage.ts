@@ -32,6 +32,11 @@ export const authStorage = {
     localStorage.setItem(REFRESH_TOKEN_KEY, token);
   },
 
+  clearRefreshToken(): void {
+    if (!isClient()) return;
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+  },
+
   getUser(): UserProfile | null {
     if (!isClient()) return null;
     try {
@@ -49,6 +54,11 @@ export const authStorage = {
     } catch {
       // Ignore storage quota error
     }
+  },
+
+  clearUser(): void {
+    if (!isClient()) return;
+    localStorage.removeItem(USER_PROFILE_KEY);
   },
 
   getRememberedEmail(): string {

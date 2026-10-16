@@ -1,9 +1,8 @@
-import React from "react";
 import { AuthContainer } from "@/components/auth/AuthContainer";
 
-export const LoginView: React.FC = () => {
+export function LoginView() {
   return <AuthContainer initialMode="login" />;
-};
+}
 
-// Bí danh tương thích
+// Giữ tương thích với những nơi sử dụng tên LoginPage.
 export { LoginView as LoginPage };

@@ -1,104 +1,108 @@
-import { ROUTES } from "./paths";
-import {
-  AUTH_ONLY_PATHS,
-  PROTECTED_PATHS,
-  PUBLIC_PATHS,
-  ROUTE_CONFIGS,
-} from "./config";
-import type { RouteConfig } from "./types";
+import { ROUTES, buildLoginUrl } from "./paths";
+import { ROUTE_CONFIGS } from "./config";
+import type { RouteAccessType, RouteConfig } from "./types";
 
 /**
- * Chuẩn hóa URL bằng cách loại bỏ query parameters, hash và dấu gạch chéo cuối cùng.
+ * Chuẩn hóa đường dẫn, loại bỏ query, hash và dấu / cuối.
  */
 export function normalizePathname(pathname: string): string {
-  if (!pathname) return "/";
-  const clean = pathname.split("?")[0].split("#")[0];
-  if (clean.length > 1 && clean.endsWith("/")) {
-    return clean.slice(0, -1);
+  const path = pathname.split(/[?#]/)[0] || "/";
+
+  if (path === "/") {
+    return path;
   }
-  return clean || "/";
+
+  return path.replace(/\/+$/, "");
 }
 
 /**
- * Kiểm tra xem một đường dẫn có khớp với đường dẫn mục tiêu hay không (khớp chính xác hoặc tiền tố).
+ * Kiểm tra đường dẫn có khớp với route hoặc route con không.
  */
-export function matchPath(pathname: string, targetPath: string): boolean {
-  const normalized = normalizePathname(pathname);
+export function matchPath(
+  pathname: string,
+  targetPath: string
+): boolean {
+  const path = normalizePathname(pathname);
   const target = normalizePathname(targetPath);
 
   if (target === "/") {
-    return normalized === "/";
+    return path === "/";
   }
-  return normalized === target || normalized.startsWith(`${target}/`);
+
+  return path === target || path.startsWith(`${target}/`);
 }
 
 /**
- * Kiểm tra xem tuyến đường có phải là trang công khai hay không (ai cũng có thể truy cập).
+ * Lấy cấu hình tương ứng với đường dẫn.
+ */
+export function getRouteConfig(
+  pathname: string
+): RouteConfig | undefined {
+  const path = normalizePathname(pathname);
+
+  // Ưu tiên khớp chính xác.
+  if (ROUTE_CONFIGS[path]) {
+    return ROUTE_CONFIGS[path];
+  }
+
+  // Nếu là route con, chọn route cha cụ thể nhất.
+  const matchedPath = Object.keys(ROUTE_CONFIGS)
+    .filter((route) => matchPath(path, route))
+    .sort((a, b) => b.length - a.length)[0];
+
+  return matchedPath
+    ? ROUTE_CONFIGS[matchedPath]
+    : undefined;
+}
+
+/**
+ * Kiểm tra quyền truy cập của một route.
+ */
+function hasRouteAccess(
+  pathname: string,
+  access: RouteAccessType
+): boolean {
+  return getRouteConfig(pathname)?.access === access;
+}
+
+/**
+ * Kiểm tra route công khai.
  */
 export function isPublicRoute(pathname: string): boolean {
-  const normalized = normalizePathname(pathname);
-  return PUBLIC_PATHS.some((path) => matchPath(normalized, path));
+  return hasRouteAccess(pathname, "public");
 }
 
 /**
- * Kiểm tra xem tuyến đường có phải chỉ dành riêng cho khách chưa đăng nhập (Login, Register, OTP).
- * Người dùng đã đăng nhập không nên truy cập các trang này.
+ * Kiểm tra route dành cho người chưa đăng nhập.
  */
 export function isAuthOnlyRoute(pathname: string): boolean {
-  const normalized = normalizePathname(pathname);
-  return AUTH_ONLY_PATHS.some((path) => matchPath(normalized, path));
+  return hasRouteAccess(pathname, "auth-only");
 }
 
 /**
- * Kiểm tra xem tuyến đường có bắt buộc phải đăng nhập hay không (Protected route).
+ * Kiểm tra route yêu cầu đăng nhập.
  */
 export function isProtectedRoute(pathname: string): boolean {
-  const normalized = normalizePathname(pathname);
-  return PROTECTED_PATHS.some((path) => matchPath(normalized, path));
+  return hasRouteAccess(pathname, "protected");
 }
 
 /**
- * Tra cứu thông tin cấu hình RouteConfig tương ứng với đường dẫn.
- */
-export function getRouteConfig(pathname: string): RouteConfig | undefined {
-  const normalized = normalizePathname(pathname);
-  // Khớp chính xác trước
-  if (ROUTE_CONFIGS[normalized]) {
-    return ROUTE_CONFIGS[normalized];
-  }
-  // Tìm kiếm theo tiền tố
-  const foundKey = Object.keys(ROUTE_CONFIGS).find((key) =>
-    matchPath(normalized, key)
-  );
-  return foundKey ? ROUTE_CONFIGS[foundKey] : undefined;
-}
-
-/**
- * Xác định xem có cần chuyển hướng hay không dựa vào trạng thái xác thực của người dùng.
- *
- * @param pathname Đường dẫn hiện tại đang yêu cầu truy cập
- * @param isAuthenticated Trạng thái đăng nhập của người dùng
- * @returns Đường dẫn mục tiêu cần chuyển hướng đến, hoặc null nếu được phép truy cập
+ * Xác định đường dẫn chuyển hướng dựa trên trạng thái đăng nhập.
  */
 export function determineRedirect(
   pathname: string,
   isAuthenticated: boolean
 ): string | null {
-  const normalized = normalizePathname(pathname);
-
-  // 1. Nếu người dùng đã đăng nhập mà cố vào trang chỉ dành cho khách (Login / Register / OTP)
-  // Chuyển hướng về trang chủ sinh viên (Portal Dashboard)
-  if (isAuthenticated && isAuthOnlyRoute(normalized)) {
-    return ROUTES.PORTAL.DASHBOARD;
+  // Đã đăng nhập thì không vào trang đăng nhập, đăng ký.
+  if (isAuthenticated && isAuthOnlyRoute(pathname)) {
+    return ROUTES.PORTAL.CHAT;
   }
 
-  // 2. Nếu người dùng chưa đăng nhập mà cố vào trang yêu cầu quyền (Protected route)
-  // Chuyển hướng về trang Đăng nhập kèm tham số ?redirect= để quay lại sau
-  if (!isAuthenticated && isProtectedRoute(normalized)) {
-    const encodedTarget = encodeURIComponent(pathname);
-    return `${ROUTES.AUTH.LOGIN}?redirect=${encodedTarget}`;
+  // Chưa đăng nhập thì chuyển về login.
+  if (!isAuthenticated && isProtectedRoute(pathname)) {
+    return buildLoginUrl({ redirect: pathname });
   }
 
-  // 3. Các trường hợp còn lại: Cho phép truy cập bình thường
+  // Không cần chuyển hướng.
   return null;
 }
