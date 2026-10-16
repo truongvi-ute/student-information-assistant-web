@@ -18,7 +18,8 @@ export const SocialButton: React.FC<SocialButtonProps> = ({
     <button
       type="button"
       onClick={onClick}
-      className={`flex-1 flex items-center justify-center gap-2.5 h-[46px] rounded-[7px] transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${isGlass
+      disabled={!onClick}
+      className={`flex-1 flex items-center justify-center gap-2.5 h-[46px] rounded-[7px] transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-50 ${isGlass
         ? "bg-white/[0.08] hover:bg-white/[0.15] border border-white/15 text-white active:scale-[0.99] shadow-sm backdrop-blur-md"
         : "bg-white border border-[#dce5f2] hover:border-[#cbd5e1] hover:bg-slate-50/60 text-[#1e293b] active:scale-[0.99]"
         }`}

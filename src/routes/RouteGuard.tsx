@@ -1,7 +1,8 @@
-import React, { useEffect, ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useRouter } from "next/router";
-import { determineRedirect, isPublicRoute } from "./guards";
 import { useAuth } from "@/contexts/AuthContext";
+import { ROUTES } from "./paths";
+import { determineRedirect, getRouteConfig } from "./guards";
 
 interface RouteGuardProps {
   children: ReactNode;
@@ -10,34 +11,104 @@ interface RouteGuardProps {
   fallback?: ReactNode;
 }
 
-export const RouteGuard: React.FC<RouteGuardProps> = ({
+/**
+ * Kiểm tra đường dẫn chuyển hướng sau đăng nhập.
+ */
+function getSafePostLoginRedirect(path: string): string {
+  const target = path.trim();
+
+  // Chỉ cho phép đường dẫn nội bộ.
+  if (
+    !target.startsWith("/") ||
+    target.startsWith("//") ||
+    target.includes("\\") ||
+    /[\u0000-\u001F\u007F]/.test(target)
+  ) {
+    return ROUTES.PORTAL.CHAT;
+  }
+
+  // Không chuyển người đã đăng nhập về các trang xác thực.
+  if (getRouteConfig(target)?.access === "auth-only") {
+    return ROUTES.PORTAL.CHAT;
+  }
+
+  return target;
+}
+
+export function RouteGuard({
   children,
   isAuthenticated: propIsAuthenticated,
   isAuthLoading: propIsAuthLoading,
   fallback,
-}) => {
+}: RouteGuardProps) {
   const router = useRouter();
-  const auth = useAuth();
+  const {
+    isAuthenticated: contextIsAuthenticated,
+    isLoading: contextIsLoading,
+    postLoginRedirect,
+    clearPostLoginRedirect,
+  } = useAuth();
+  const isAuthenticated = propIsAuthenticated ?? contextIsAuthenticated;
+  const isAuthLoading = propIsAuthLoading ?? contextIsLoading;
+  const pendingRedirect = useRef<string | null>(null);
+  const routeConfig = getRouteConfig(router.pathname);
+  const isPublic = routeConfig?.access === "public";
+  const isAuthOnly = routeConfig?.access === "auth-only";
+  let redirectTarget: string | null = null;
 
-  const isAuthenticated = propIsAuthenticated ?? auth.isAuthenticated;
-  const isAuthLoading = propIsAuthLoading ?? auth.isLoading;
-
-  const isPublic = isPublicRoute(router.asPath);
-  const redirectTarget = !isAuthLoading && !isPublic ? determineRedirect(router.asPath, isAuthenticated) : null;
-
-  useEffect(() => {
-    if (redirectTarget) {
-      router.replace(redirectTarget);
+  if (router.isReady && !isAuthLoading && !isPublic) {
+    if (isAuthenticated && isAuthOnly && postLoginRedirect) {
+      redirectTarget = getSafePostLoginRedirect(postLoginRedirect);
+    } else {
+      redirectTarget = determineRedirect(router.asPath, isAuthenticated);
     }
+  }
+  useEffect(() => {
+    if (!redirectTarget) {
+      pendingRedirect.current = null;
+      return;
+    }
+
+    if (pendingRedirect.current === redirectTarget) {
+      return;
+    }
+
+    pendingRedirect.current = redirectTarget;
+
+    void router.replace(redirectTarget).catch((error: unknown) => {
+      console.error("Không thể chuyển hướng:", error);
+
+      if (pendingRedirect.current === redirectTarget) {
+        pendingRedirect.current = null;
+      }
+    });
   }, [redirectTarget, router]);
 
-  // Cho phép render ngay lập tức đối với các trang công khai
+  // Xóa redirect tạm sau khi đã rời trang xác thực.
+  useEffect(() => {
+    if (
+      router.isReady &&
+      isAuthenticated &&
+      postLoginRedirect &&
+      !isAuthOnly
+    ) {
+      clearPostLoginRedirect();
+    }
+  }, [
+    router.isReady,
+    isAuthenticated,
+    postLoginRedirect,
+    isAuthOnly,
+    clearPostLoginRedirect,
+  ]);
+
+  // Trang công khai không cần chờ xác thực.
   if (isPublic) {
     return <>{children}</>;
   }
 
-  // Hiển thị màn hình chờ khi đang kiểm tra phiên hoặc đang chuyển hướng
-  if (isAuthLoading || redirectTarget) {
+  // Hiển thị loading khi kiểm tra phiên hoặc chuyển hướng.
+  if (!router.isReady || isAuthLoading || redirectTarget) {
     if (fallback) {
       return <>{fallback}</>;
     }

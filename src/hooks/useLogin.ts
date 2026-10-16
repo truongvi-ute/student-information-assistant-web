@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { useRouter } from "next/router";
+import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/services/auth.service";
 import { authStorage } from "@/utils/auth-storage";
 import { ApiClientError } from "@/lib/api/api-error";
@@ -12,37 +14,47 @@ interface UseLoginOptions {
 
 export function useLogin(options?: UseLoginOptions) {
   const router = useRouter();
-
+  const { login: completeLogin } = useAuth();
   const queryEmail = typeof router.query.email === "string" ? router.query.email : "";
   const [customIdentifier, setCustomIdentifier] = useState<string | null>(null);
+  const [rememberedEmail, setRememberedEmail] = useState("");
+
+  useEffect(() => {
+    setRememberedEmail(authStorage.getRememberedEmail());
+  }, []);
 
   const identifier =
-    customIdentifier !== null
-      ? customIdentifier
-      : queryEmail || (typeof window !== "undefined" ? authStorage.getRememberedEmail() : "");
+    customIdentifier !== null ? customIdentifier : queryEmail || rememberedEmail;
 
   const setIdentifier = (val: string) => {
     setCustomIdentifier(val);
   };
 
-  const [password, setPassword] = useState<string>("");
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [rememberMe, setRememberMe] = useState<boolean>(true);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string>("");
-  const [successMessage, setSuccessMessage] = useState<string>("");
-  const [needsVerification, setNeedsVerification] = useState<boolean>(false);
-
+  useEffect(() => {
+    return () => {
+      if (redirectTimer.current !== null) {
+        clearTimeout(redirectTimer.current);
+      }
+    };
+  }, []);
 
   const toggleShowPassword = () => {
     setShowPassword((prev) => !prev);
   };
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isLoading) return;
-
+    
     setErrorMessage("");
     setSuccessMessage("");
     setNeedsVerification(false);
@@ -53,6 +65,8 @@ export function useLogin(options?: UseLoginOptions) {
       return;
     }
 
+    let redirectScheduled = false;
+
     try {
       setIsLoading(true);
 
@@ -62,21 +76,48 @@ export function useLogin(options?: UseLoginOptions) {
         rememberMe,
       });
 
-      setSuccessMessage(response?.message || "Đăng nhập thành công! Đang chuyển hướng...");
+      const token = response.accessToken || response.token;
 
-      // Xác định đường dẫn điều hướng sau khi đăng nhập
-      const redirectTarget =
-        typeof router.query.redirect === "string" && router.query.redirect
-          ? decodeURIComponent(router.query.redirect)
-          : ROUTES.PORTAL.CHAT;
-
-      if (options?.onLoginSuccess) {
-        options.onLoginSuccess();
+      if (!token) {
+        throw new Error(
+          "Đăng nhập thành công nhưng không nhận được token."
+        );
       }
 
-      setTimeout(() => {
-        router.push(redirectTarget);
+      const redirectTarget =
+        typeof router.query.redirect === "string" && router.query.redirect
+          ? router.query.redirect
+          : ROUTES.PORTAL.CHAT;
+
+      setSuccessMessage(
+        response.message || "Đăng nhập thành công! Đang chuyển hướng..."
+      );
+
+      options?.onLoginSuccess?.();
+      redirectTimer.current = setTimeout(() => {
+        redirectTimer.current = null;
+
+        try {
+          // Service đã lưu token và user vào storage.
+          // Context đồng bộ state và thông tin chuyển hướng.
+          completeLogin(
+            token,
+            undefined,
+            undefined,
+            redirectTarget
+          );
+        } catch (error) {
+          setSuccessMessage("");
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Không thể hoàn tất đăng nhập."
+          );
+          setIsLoading(false);
+        }
       }, 1000);
+
+      redirectScheduled = true;
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         setErrorMessage(err.message);
@@ -97,7 +138,9 @@ export function useLogin(options?: UseLoginOptions) {
         setErrorMessage("Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.");
       }
     } finally {
-      setIsLoading(false);
+      if (!redirectScheduled) {
+        setIsLoading(false);
+      }
     }
   };
 

@@ -32,21 +32,23 @@ export const authService = {
     const token = response.accessToken || response.token;
 
     if (token) {
+      authStorage.clearAuth();
+
       authStorage.setToken(token);
-    }
 
-    if (response.refreshToken) {
-      authStorage.setRefreshToken(response.refreshToken);
-    }
+      if (response.refreshToken) {
+        authStorage.setRefreshToken(response.refreshToken);
+      }
 
-    if (response.user) {
-      authStorage.setUser(response.user);
-    } else if (response.id && response.email) {
-      authStorage.setUser({
-        id: response.id,
-        email: response.email,
-        fullName: response.fullName || "",
-      });
+      if (response.user) {
+        authStorage.setUser(response.user);
+      } else if (response.id && response.email) {
+        authStorage.setUser({
+          id: response.id,
+          email: response.email,
+          fullName: response.fullName || "",
+        });
+      }
     }
 
     if (data.rememberMe) {
@@ -57,6 +59,7 @@ export const authService = {
 
     return response;
   },
+
 
   /**
    * Bắt đầu đăng ký và gửi OTP

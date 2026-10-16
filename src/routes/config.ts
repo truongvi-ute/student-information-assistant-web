@@ -1,5 +1,5 @@
 import { ROUTES } from "./paths";
-import type { RouteConfig } from "./types";
+import type { RouteConfig, RouteAccessType } from "./types";
 
 /**
  * Cấu hình thông tin Metadata chi tiết cho toàn bộ các tuyến đường trong hệ thống
@@ -89,39 +89,52 @@ export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
     layout: "auth",
     description: "Khôi phục mật khẩu tài khoản sinh viên HCMUTE qua mã xác thực OTP.",
   },
+  [ROUTES.AUTH.RESET_PASSWORD]: {
+    path: ROUTES.AUTH.RESET_PASSWORD,
+    title: "Đặt lại mật khẩu — HCMUTE Student Assistant",
+    access: "auth-only",
+    layout: "auth",
+    description: "Thiết lập mật khẩu mới cho tài khoản.",
+  },
+
+  [ROUTES.PORTAL.TRAINING]: {
+    path: ROUTES.PORTAL.TRAINING,
+    title: "Thông tin đào tạo — HCMUTE Student Assistant",
+    access: "protected",
+    layout: "dashboard",
+    description: "Tra cứu thông tin đào tạo của sinh viên.",
+  },
+
+  [ROUTES.PORTAL.NOTIFICATIONS]: {
+    path: ROUTES.PORTAL.NOTIFICATIONS,
+    title: "Thông báo — HCMUTE Student Assistant",
+    access: "protected",
+    layout: "dashboard",
+    description: "Xem thông báo dành cho sinh viên.",
+  },
 };
 
-/**
- * Danh sách các tuyến đường chỉ dành riêng cho khách chưa đăng nhập.
- * Nếu người dùng đã đăng nhập truy cập vào các trang này, hệ thống sẽ tự động chuyển hướng về DASHBOARD.
- */
-export const AUTH_ONLY_PATHS: readonly string[] = [
-  ROUTES.AUTH.LOGIN,
-  ROUTES.AUTH.REGISTER,
-  ROUTES.AUTH.VERIFY_OTP,
-  ROUTES.AUTH.VERIFY_REGISTRATION,
-  ROUTES.AUTH.FORGOT_PASSWORD,
-  ROUTES.AUTH.RESET_PASSWORD,
-];
 
 /**
- * Danh sách các tuyến đường bắt buộc phải có phiên đăng nhập hợp lệ.
- * Nếu khách chưa đăng nhập truy cập, hệ thống sẽ chuyển hướng về trang LOGIN kèm tham số chuyển tiếp.
+ * Lấy danh sách đường dẫn theo quyền truy cập.
  */
-export const PROTECTED_PATHS: readonly string[] = [
-  ROUTES.PORTAL.DASHBOARD,
-  ROUTES.PORTAL.CHAT,
-  ROUTES.PORTAL.TRAINING,
-  ROUTES.PORTAL.SCHEDULE,
-  ROUTES.PORTAL.PROFILE,
-  ROUTES.PORTAL.NOTIFICATIONS,
-];
+function getPathsByAccess(access: RouteAccessType): readonly string[] {
+  return Object.values(ROUTE_CONFIGS)
+    .filter((config) => config.access === access)
+    .map((config) => config.path);
+}
 
 /**
- * Danh sách các tuyến đường công khai cho tất cả mọi người.
+ * Các trang dành cho người chưa đăng nhập.
  */
-export const PUBLIC_PATHS: readonly string[] = [
-  ROUTES.PUBLIC.HOME,
-  ROUTES.PUBLIC.TERMS,
-  ROUTES.PUBLIC.PRIVACY,
-];
+export const AUTH_ONLY_PATHS = getPathsByAccess("auth-only");
+
+/**
+ * Các trang yêu cầu đăng nhập.
+ */
+export const PROTECTED_PATHS = getPathsByAccess("protected");
+
+/**
+ * Các trang công khai.
+ */
+export const PUBLIC_PATHS = getPathsByAccess("public");

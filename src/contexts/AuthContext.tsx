@@ -1,10 +1,11 @@
-import React, {
+
+import {
   createContext,
   useContext,
   useState,
   useEffect,
   useCallback,
-  ReactNode,
+  type ReactNode,
 } from "react";
 import { authStorage } from "@/utils/auth-storage";
 import { authService } from "@/services/auth.service";
@@ -14,61 +15,96 @@ interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (token: string, refreshToken?: string, user?: UserProfile) => void;
+  postLoginRedirect: string | null;
+  login: (token: string, refreshToken?: string, user?: UserProfile, redirectTo?: string) => void;
   logout: () => void;
   refreshProfile: () => Promise<void>;
+  clearPostLoginRedirect: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+interface AuthProviderProps {
+  children: ReactNode;
+}
 
-  // Khôi phục trạng thái đăng nhập từ bộ nhớ lưu trữ phía client
+export function AuthProvider({ children }: AuthProviderProps) {
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [postLoginRedirect, setPostLoginRedirect] = useState<string | null>(null);
+
+  // Khôi phục thông tin đăng nhập khi ứng dụng khởi tạo.
   useEffect(() => {
     try {
       const token = authStorage.getToken();
-      const savedUser = authStorage.getUser();
-      if (token) {
-        setIsAuthenticated(true);
-        setUser(savedUser);
-      } else {
-        setIsAuthenticated(false);
-        setUser(null);
-      }
+      const savedUser = token ? authStorage.getUser() : null;
+
+      setUser(savedUser);
+      setIsAuthenticated(Boolean(token));
+    } catch (error) {
+      console.error("Không thể khôi phục phiên đăng nhập:", error);
+
+      setUser(null);
+      setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+  // Cập nhật trạng thái sau khi đăng nhập thành công.
   const login = useCallback(
-    (token: string, refreshToken?: string, newUser?: UserProfile) => {
-      authStorage.setToken(token);
+    (token: string, refreshToken?: string, newUser?: UserProfile, redirectTo?: string) => {
+      if (!token.trim()) {
+        throw new Error("Không tìm thấy token đăng nhập.");
+      }
+
+      const currentToken = authStorage.getToken();
+
+      // Chỉ thay phiên lưu trữ nếu token đã thay đổi.
+      if (currentToken !== token) {
+        authStorage.clearAuth();
+        authStorage.setToken(token);
+      }
       if (refreshToken) authStorage.setRefreshToken(refreshToken);
       if (newUser) {
         authStorage.setUser(newUser);
-        setUser(newUser);
       }
+      // Nếu service đã lưu user thì sử dụng lại.
+      const currentUser = newUser ?? authStorage.getUser();
+
+      setUser(currentUser);
+      setPostLoginRedirect(redirectTo ?? null);
       setIsAuthenticated(true);
     },
     []
   );
 
+  // Xóa thông tin đăng nhập.
   const logout = useCallback(() => {
-    authService.logout();
+    void authService.logout();
+
     setUser(null);
     setIsAuthenticated(false);
+    setPostLoginRedirect(null);
   }, []);
 
+  // Làm mới thông tin người dùng từ backend.
   const refreshProfile = useCallback(async () => {
     try {
       const profile = await authService.getProfile();
       setUser(profile);
-    } catch {
-      // Giữ nguyên thông tin hiện tại nếu chưa thể làm mới
+    } catch (error) {
+      console.error(
+        "Không thể cập nhật thông tin người dùng:",
+        error
+      );
     }
+  }, []);
+
+  // Xóa đường dẫn chuyển hướng sau khi đã sử dụng.
+  const clearPostLoginRedirect = useCallback(() => {
+    setPostLoginRedirect(null);
   }, []);
 
   return (
@@ -77,9 +113,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         user,
         isAuthenticated,
         isLoading,
+        postLoginRedirect,
         login,
         logout,
         refreshProfile,
+        clearPostLoginRedirect,
       }}
     >
       {children}
@@ -89,8 +127,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
+
   if (!context) {
-    throw new Error("useAuth phải được sử dụng bên trong AuthProvider");
+    throw new Error(
+      "useAuth phải được sử dụng bên trong AuthProvider"
+    );
   }
+
   return context;
 }

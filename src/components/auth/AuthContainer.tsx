@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
@@ -24,10 +22,10 @@ export const AuthContainer: React.FC<AuthContainerProps> = ({
   const shouldReduceMotion = useReducedMotion();
 
   // Xác định chế độ hiển thị và bước từ URL
-  const mode: AuthMode = router.pathname.includes("/register")
+  const mode: AuthMode = router.pathname === ROUTES.AUTH.REGISTER
     ? "register"
-    : router.pathname.includes("/login")
-    ? "login"
+    : router.pathname === ROUTES.AUTH.LOGIN 
+    ? "login" 
     : initialMode;
 
   const isOtpStep = router.query.step === "otp" || router.query.step === "OTP";
@@ -43,12 +41,12 @@ export const AuthContainer: React.FC<AuthContainerProps> = ({
   // Điều hướng chuyển đổi mượt mà giữa Đăng nhập và Đăng ký
   const handleSwitchToRegister = () => {
     setDirection(1);
-    router.push(ROUTES.AUTH.REGISTER, undefined, { shallow: true });
+    void router.push(ROUTES.AUTH.REGISTER);
   };
 
   const handleSwitchToLogin = () => {
     setDirection(-1);
-    router.push(ROUTES.AUTH.LOGIN, undefined, { shallow: true });
+    void router.push(ROUTES.AUTH.LOGIN);
   };
 
   const handleRegisterSuccess = (data?: {
@@ -56,8 +54,9 @@ export const AuthContainer: React.FC<AuthContainerProps> = ({
     resendAvailableInSeconds?: number;
   }) => {
     if (data?.email) setCustomOtpEmail(data.email);
-    if (data?.resendAvailableInSeconds) setOtpCooldown(data.resendAvailableInSeconds);
-    setDirection(1);
+    if (data?.resendAvailableInSeconds !== undefined) {
+      setOtpCooldown(data.resendAvailableInSeconds);
+    }
 
     router.push(
       {
@@ -81,8 +80,8 @@ export const AuthContainer: React.FC<AuthContainerProps> = ({
     step === "OTP"
       ? "Xác thực mã OTP — HCMUTE Student Assistant"
       : mode === "login"
-      ? "Đăng nhập tài khoản — HCMUTE Student Assistant"
-      : "Tạo tài khoản — HCMUTE Student Assistant";
+        ? "Đăng nhập tài khoản — HCMUTE Student Assistant"
+        : "Tạo tài khoản — HCMUTE Student Assistant";
 
   const pageDesc =
     mode === "login"

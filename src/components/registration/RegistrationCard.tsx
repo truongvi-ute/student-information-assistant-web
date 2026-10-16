@@ -132,18 +132,18 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
           />
         </div>
 
-        {/* Consent */}
+
+        {/* Đồng ý điều khoản sử dụng */}
         <div
           className="flex items-start gap-2.5"
           style={{ marginTop: "11px" }}
         >
           <button
+            id="registration-consent"
             type="button"
             role="checkbox"
             aria-checked={consent}
-            onClick={() =>
-              setConsent((previous) => !previous)
-            }
+            onClick={() => setConsent((previous) => !previous)}
             className={`w-[18px] h-[18px] shrink-0 rounded-[4px] mt-0.5 flex items-center justify-center transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${consent
               ? "bg-blue-600 text-white border-blue-500"
               : "border border-white/25 bg-white/[0.08] hover:border-white/40"
@@ -156,17 +156,13 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
           </button>
 
           <label
-            onClick={() =>
-              setConsent((previous) => !previous)
-            }
+            htmlFor="registration-consent"
             className="text-[12.5px] text-slate-300 leading-snug cursor-pointer select-none"
           >
             Tôi đồng ý với{" "}
             <Link
               href={ROUTES.PUBLIC.TERMS}
-              onClick={(event) =>
-                event.stopPropagation()
-              }
+              onClick={(event) => event.stopPropagation()}
               className="text-[#38bdf8] hover:text-[#7dd3fc] hover:underline font-medium"
             >
               Điều khoản sử dụng
@@ -174,9 +170,7 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
             và{" "}
             <Link
               href={ROUTES.PUBLIC.PRIVACY}
-              onClick={(event) =>
-                event.stopPropagation()
-              }
+              onClick={(event) => event.stopPropagation()}
               className="text-[#38bdf8] hover:text-[#7dd3fc] hover:underline font-medium"
             >
               Chính sách bảo mật
@@ -184,6 +178,7 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
             của HCMUTE Student Assistant
           </label>
         </div>
+
 
         {/* Submit */}
         <div>

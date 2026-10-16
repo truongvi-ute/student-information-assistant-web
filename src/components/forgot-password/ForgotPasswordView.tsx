@@ -1,8 +1,8 @@
-import React from "react";
+
 import { AuthLayout } from "@/layouts/AuthLayout";
 import { ForgotPasswordCard } from "./ForgotPasswordCard";
 
-export const ForgotPasswordView: React.FC = () => {
+export function ForgotPasswordView() {
   return (
     <AuthLayout
       title="Khôi phục mật khẩu — HCMUTE Student Assistant"
@@ -13,7 +13,7 @@ export const ForgotPasswordView: React.FC = () => {
       </div>
     </AuthLayout>
   );
-};
+}
 
 // Bí danh tương thích
 export { ForgotPasswordView as ForgotPasswordPage };
