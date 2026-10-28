@@ -17,6 +17,28 @@ export const authStorage = {
     return localStorage.getItem(AUTH_TOKEN_KEY);
   },
 
+  getAccountId(): string | null {
+    const token = this.getToken();
+    if (!token) return null;
+
+    try {
+      // UI filtering only; the backend still validates the token and sender.
+      const payloadPart = token.split(".")[1];
+      if (!payloadPart) return null;
+
+      const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+      const paddedBase64 = base64.padEnd(
+        Math.ceil(base64.length / 4) * 4,
+        "="
+      );
+      const payload = JSON.parse(atob(paddedBase64)) as { sub?: unknown };
+
+      return typeof payload.sub === "string" ? payload.sub : null;
+    } catch {
+      return null;
+    }
+  },
+
   setToken(token: string): void {
     if (!isClient()) return;
     localStorage.setItem(AUTH_TOKEN_KEY, token);

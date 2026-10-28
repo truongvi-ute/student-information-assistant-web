@@ -33,7 +33,6 @@ export const authService = {
 
     if (token) {
       authStorage.clearAuth();
-
       authStorage.setToken(token);
 
       if (response.refreshToken) {
@@ -42,12 +41,16 @@ export const authService = {
 
       if (response.user) {
         authStorage.setUser(response.user);
-      } else if (response.id && response.email) {
-        authStorage.setUser({
-          id: response.id,
-          email: response.email,
-          fullName: response.fullName || "",
-        });
+      } else {
+        try {
+          await this.getProfile();
+        } catch {
+          authStorage.setUser({
+            id: authStorage.getAccountId() || "",
+            email: data.email.trim(),
+            fullName: data.email.trim().split("@")[0] || "",
+          });
+        }
       }
     }
 
@@ -109,18 +112,24 @@ export const authService = {
     authStorage.clearAuth();
   },
 
-  /**
-   * Lấy profile
-   *
-   * Chỉ sử dụng khi backend đã có GET /api/auth/me
-   */
   async getProfile(): Promise<UserProfile> {
-    const response =
-      await apiClient.get<UserProfile>("/auth/me");
+    const response = await apiClient.get<{
+      accountId: string;
+      fullName: string;
+      email: string;
+      role?: string;
+    }>("/users/me");
 
-    authStorage.setUser(response);
+    const profile: UserProfile = {
+      id: response.accountId,
+      email: response.email,
+      fullName: response.fullName,
+      role: response.role,
+    };
 
-    return response;
+    authStorage.setUser(profile);
+
+    return profile;
   },
 
   /**
