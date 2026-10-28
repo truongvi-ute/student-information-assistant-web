@@ -42,6 +42,28 @@
   --shadow-card: 0 26px 70px rgba(8, 31, 75, 0.22), 0 3px 16px rgba(14, 40, 92, 0.1);
 
   --font-reg: var(--font-sans);
+
+  /* Tokens cho khu vực Chat Tư vấn đào tạo (Light Mode) */
+  --chat-bg: #F8FAFC;
+  --chat-surface: #FFFFFF;
+  --chat-text: #0F172A;
+  --chat-muted: #475569;
+  --chat-primary: #1D4ED8;
+  --chat-primary-hover: #1E40AF;
+  --chat-selected-bg: #DBEAFE;
+  --chat-selected-text: #1E40AF;
+  --chat-hover-bg: #F1F5F9;
+  --chat-border: #E2E8F0;
+  --chat-border-control: #64748B;
+  --chat-border-subtle: #CBD5E1;
+  --chat-success-text: #15803D;
+  --chat-success-bg: #F0FDF4;
+  --chat-warning-text: #92400E;
+  --chat-warning-bg: #FFFBEB;
+  --chat-error-text: #B91C1C;
+  --chat-error-bg: #FEF2F2;
+  --chat-info-text: #1D4ED8;
+  --chat-info-bg: #EFF6FF;
 }
 
 html,

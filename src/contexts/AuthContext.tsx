@@ -34,6 +34,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [postLoginRedirect, setPostLoginRedirect] = useState<string | null>(null);
 
+  const refreshProfile = useCallback(async () => {
+    try {
+      const profile = await authService.getProfile();
+      setUser(profile);
+    } catch (error) {
+      console.error("Không thể cập nhật thông tin người dùng:", error);
+    }
+  }, []);
+
   // Khôi phục thông tin đăng nhập khi ứng dụng khởi tạo.
   useEffect(() => {
     try {
@@ -42,6 +51,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setUser(savedUser);
       setIsAuthenticated(Boolean(token));
+
+      if (token && (!savedUser || !savedUser.fullName)) {
+        void refreshProfile();
+      }
     } catch (error) {
       console.error("Không thể khôi phục phiên đăng nhập:", error);
 
@@ -50,7 +63,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [refreshProfile]);
 
   // Cập nhật trạng thái sau khi đăng nhập thành công.
   const login = useCallback(
@@ -89,18 +102,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setPostLoginRedirect(null);
   }, []);
 
-  // Làm mới thông tin người dùng từ backend.
-  const refreshProfile = useCallback(async () => {
-    try {
-      const profile = await authService.getProfile();
-      setUser(profile);
-    } catch (error) {
-      console.error(
-        "Không thể cập nhật thông tin người dùng:",
-        error
-      );
-    }
-  }, []);
 
   // Xóa đường dẫn chuyển hướng sau khi đã sử dụng.
   const clearPostLoginRedirect = useCallback(() => {
