@@ -22,6 +22,7 @@ export const ROUTES = {
   // Các trang công khai và liên kết đến mục trên trang chủ
   PUBLIC: {
     HOME: "/",
+    CHATBOT: "/chatbot",
     TERMS: "/terms",
     PRIVACY: "/privacy",
     ABOUT: "#gioi-thieu",

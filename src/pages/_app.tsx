@@ -2,7 +2,10 @@ import type { AppProps } from "next/app";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { sourceSans3 } from "@/styles/fonts";
+import { ChatbotProvider } from "@/contexts/ChatbotContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
+import { ROUTES } from "@/routes";
 import { RouteGuard, getRouteConfig } from "@/routes";
 import "@/styles/globals.css";
 
@@ -10,6 +13,8 @@ export default function NextApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
   // Lấy thông tin cấu hình của trang hiện tại.
   const routeConfig = getRouteConfig(router.pathname);
+  const isChatPage = router.pathname === ROUTES.PORTAL.CHAT
+    || router.pathname === ROUTES.PUBLIC.CHATBOT;
 
   const title = routeConfig?.title ?? "Student Assistant";
   const description =
@@ -32,9 +37,17 @@ export default function NextApp({ Component, pageProps }: AppProps) {
       </Head>
 
       <AuthProvider>
+        <ChatbotProvider>
         <RouteGuard>
-          <Component {...pageProps} />
+          {isChatPage ? (
+            <ChatWorkspace>
+              <Component {...pageProps} />
+            </ChatWorkspace>
+          ) : (
+            <Component {...pageProps} />
+          )}
         </RouteGuard>
+        </ChatbotProvider>
       </AuthProvider>
     </div>
   );

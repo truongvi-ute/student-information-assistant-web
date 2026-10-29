@@ -95,7 +95,7 @@ export function determineRedirect(
 ): string | null {
   // Đã đăng nhập thì không vào trang đăng nhập, đăng ký.
   if (isAuthenticated && isAuthOnlyRoute(pathname)) {
-    return ROUTES.PORTAL.CHAT;
+    return ROUTES.PUBLIC.CHATBOT
   }
 
   // Chưa đăng nhập thì chuyển về login.
