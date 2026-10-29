@@ -142,3 +142,44 @@ nextjs-dev-overlay,
 #__next-build-watcher {
   display: none !important;
 }
+
+/* Floating labels used by the authentication forms. */
+.registration-scope .auth-floating-label {
+  position: absolute;
+  left: 39px;
+  top: 50%;
+  z-index: 1;
+  max-width: calc(100% - 88px);
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: white;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 18px;
+  transform: translateY(-50%);
+  transition: top 150ms ease, font-size 150ms ease, color 150ms ease;
+  cursor: text;
+}
+
+.registration-scope .auth-floating-field:has(input:focus) > .auth-floating-label,
+.registration-scope .auth-floating-field:has(input:not(:placeholder-shown)) > .auth-floating-label,
+.registration-scope .auth-floating-field:has(input:autofill) > .auth-floating-label {
+  top: 0;
+  font-size: 12px;
+}
+
+.registration-scope .auth-floating-field:has(input:focus) > .auth-floating-label {
+  color: var(--chat-primary);
+}
+
+.registration-scope .auth-floating-field:has(input:disabled) > .auth-floating-label {
+  background: #f8fafc;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .registration-scope .auth-floating-label {
+    transition: none;
+  }
+}

@@ -11,7 +11,6 @@ interface UseRegisterOptions {
 export function useRegister(options?: UseRegisterOptions) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [studentId, setStudentId] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [consent, setConsent] = useState(false);
@@ -48,7 +47,7 @@ export function useRegister(options?: UseRegisterOptions) {
       majorId: null,
       educationSystemId: null,
       cohortId: null,
-      academicContext: studentId.trim() || null,
+      academicContext: null,
     };
 
     try {
@@ -81,8 +80,6 @@ export function useRegister(options?: UseRegisterOptions) {
     setFullName,
     email,
     setEmail,
-    studentId,
-    setStudentId,
     password,
     setPassword,
     confirmPassword,

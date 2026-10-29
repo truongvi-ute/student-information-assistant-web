@@ -118,16 +118,17 @@ export const OtpInput: React.FC<OtpInputProps> = ({
             autoComplete={idx === 0 ? "one-time-code" : "off"}
             value={digits[idx]}
             disabled={disabled}
+            aria-invalid={isError}
             onChange={(e) => handleChange(idx, e)}
             onKeyDown={(e) => handleKeyDown(idx, e)}
             onPaste={(e) => handlePaste(e, idx)}
             aria-label={`Số thứ ${idx + 1}`}
-            className={`w-[44px] h-[52px] sm:w-[54px] sm:h-[62px] text-center text-[22px] sm:text-[26px] font-bold rounded-[7px] transition-all outline-none select-none ${isError
-              ? "border-2 border-red-500 bg-red-950/40 text-red-300 focus:ring-4 focus:ring-red-500/20"
+            className={`w-0 min-w-0 flex-1 max-w-[44px] h-[48px] sm:max-w-[54px] sm:h-[54px] text-center text-[22px] sm:text-[26px] font-bold rounded-lg transition-colors duration-150 motion-reduce:transition-none outline-none select-none ${isError
+              ? "border-2 border-red-500 bg-red-50 text-red-700 focus:border-red-500 focus:ring-2 focus:ring-red-500/15"
               : isFilled
-                ? "border-[1.5px] border-blue-400 bg-white/[0.14] text-white shadow-[0_0_12px_rgba(59,130,246,0.3)]"
-                : "border border-white/20 bg-white/[0.08] text-white hover:border-white/35 focus:bg-white/[0.14]"
-              } focus:border-blue-400 focus:ring-4 focus:ring-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed`}
+                ? "border border-[var(--chat-primary)] bg-[var(--chat-info-bg)] text-slate-900 focus:border-[var(--chat-primary)] focus:ring-2 focus:ring-[var(--chat-primary)]/15"
+                : "border border-[#CBD5E1] bg-white text-slate-900 hover:border-[#94A3B8] focus:border-[var(--chat-primary)] focus:ring-2 focus:ring-[var(--chat-primary)]/15"
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
           />
         );
       })}
