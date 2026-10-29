@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { chatService } from "@/services/chat.service";
 import type { ChatContact, ChatConversationItem, ChatMessageEvent } from "@/types/chat";
 
-export function useChatConversations() {
+export function useChatConversations(enabled = true) {
   const [conversations, setConversations] = useState<ChatConversationItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
+
     let isMounted = true;
     chatService
       .getConversations()
@@ -27,9 +29,10 @@ export function useChatConversations() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [enabled]);
 
   const refreshConversations = () => {
+    if (!enabled) return;
     setIsLoading(true);
     setError(null);
     chatService

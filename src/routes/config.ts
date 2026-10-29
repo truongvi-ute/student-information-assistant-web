@@ -54,6 +54,11 @@ export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
     layout: "main",
     description: "Cam kết bảo mật dữ liệu và quyền riêng tư của người dùng.",
   },
+  [ROUTES.PUBLIC.CHATBOT]: {
+    path: ROUTES.PUBLIC.CHATBOT,
+    title: "Hội thoại AI",
+    access: "public",
+  },
   [ROUTES.PORTAL.DASHBOARD]: {
     path: ROUTES.PORTAL.DASHBOARD,
     title: "Trang chủ sinh viên — HCMUTE Student Assistant",

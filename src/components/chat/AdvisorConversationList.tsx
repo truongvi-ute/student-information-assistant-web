@@ -1,20 +1,12 @@
-import { useState, useRef, useEffect } from "react";
+import { useConsultation } from "@/contexts/ConsultationContext";
 import type { ChatConversationItem } from "@/types/chat";
-import type { UserProfile } from "@/types/auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Search,
-  PanelLeftClose,
-  PanelLeft,
-  LogOut,
-  MoreHorizontal,
-  UserPlus,
-} from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
 
-interface ChatSidebarProps {
+interface AdvisorConversationListProps {
   role?: "STUDENT" | "ADVISOR";
   conversations: ChatConversationItem[];
   selectedPartnerId: string | null;
@@ -23,12 +15,7 @@ interface ChatSidebarProps {
   isLoading: boolean;
   error: string | null;
   onRetry?: () => void;
-  currentUser?: UserProfile | null;
-  onLogout?: () => void;
   isCollapsed?: boolean;
-  onToggleCollapse?: () => void;
-  onCollapse?: () => void;
-  className?: string;
 }
 
 function formatConversationTime(dateStr?: string) {
@@ -52,7 +39,7 @@ function formatConversationTime(dateStr?: string) {
   });
 }
 
-export function ChatSidebar({
+export function AdvisorConversationList({
   role = "STUDENT",
   conversations,
   selectedPartnerId,
@@ -61,59 +48,27 @@ export function ChatSidebar({
   isLoading,
   error,
   onRetry,
-  currentUser,
-  onLogout,
   isCollapsed = false,
-  onToggleCollapse,
-  onCollapse,
-  className = "",
-}: ChatSidebarProps) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setProfileMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+}: AdvisorConversationListProps) {
+  const { searchTerm, setSearchTerm } = useConsultation();
 
   const isStudent = role === "STUDENT";
-  const title = isStudent ? "Tư vấn trực tiếp" : "Tin nhắn sinh viên";
+
   const searchPlaceholder = isStudent
     ? "Tìm theo tên cố vấn..."
-    : "Tìm theo tên sinh viên...";
+    : "Tìm sinh viên, nội dung...";
 
-  const filteredConversations = conversations.filter((item) => {
-    return item.partnerName.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const query = searchTerm.trim().toLowerCase();
+  const filteredConversations = conversations.filter((item) =>
+    item.partnerName.toLowerCase().includes(query)
+    || (!isStudent && item.lastMessage.toLowerCase().includes(query))
+  );
 
-  const displayName = currentUser?.fullName || currentUser?.email || "Tài khoản";
-  const displayEmail = currentUser?.email || "";
-  const displayRole = isStudent ? "Sinh viên" : "Cố vấn";
 
   if (isCollapsed) {
     return (
-      <aside
-        className={`w-[68px] border-r border-[#E2E8F0] flex flex-col h-full bg-white py-3 items-center justify-between shrink-0 select-none ${className}`}
-      >
-        <div className="flex flex-col items-center gap-3 w-full">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onToggleCollapse || onCollapse}
-            title="Mở rộng danh sách"
-            className="h-10 w-10 text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9] rounded-lg"
-          >
-            <PanelLeft className="w-5 h-5" />
-          </Button>
-
-          {isStudent && (
+      <div className="flex min-h-0 flex-1 flex-col items-center gap-3 overflow-y-auto py-3">
+        {isStudent && (
             <Button
               type="button"
               variant="default"
@@ -126,8 +81,8 @@ export function ChatSidebar({
             </Button>
           )}
 
-          <div className="w-8 h-px bg-[#E2E8F0] my-0.5" />
 
+        <div className="w-8 h-px bg-[#E2E8F0] my-0.5" />
           <div className="flex flex-col items-center gap-2.5 w-full max-h-[calc(100vh-210px)] overflow-y-auto no-scrollbar px-1">
             {conversations.map((conv) => {
               const isSelected = selectedPartnerId === conv.partnerId;
@@ -162,75 +117,14 @@ export function ChatSidebar({
               );
             })}
           </div>
-        </div>
 
-        <div ref={menuRef} className="relative">
-          {profileMenuOpen && (
-            <div className="absolute bottom-full left-3 mb-2 w-56 bg-white border border-[#CBD5E1] rounded-xl shadow-xl py-2 z-40 text-[#0F172A]">
-              <div className="px-3.5 py-2 border-b border-[#E2E8F0]">
-                <p className="text-xs font-semibold text-[#0F172A] truncate">
-                  {displayName}
-                </p>
-                <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">
-                  {displayRole}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setProfileMenuOpen(false);
-                  onLogout?.();
-                }}
-                className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-[#B91C1C] hover:bg-[#FEF2F2] text-left font-medium transition-colors"
-              >
-                <LogOut className="w-4 h-4 shrink-0" />
-                <span>Đăng xuất</span>
-              </button>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-            title={displayName}
-            className="p-1 rounded-full hover:bg-[#F1F5F9] transition-colors"
-          >
-            <Avatar className="h-9 w-9 ring-1 ring-[#CBD5E1]">
-              <AvatarFallback className="bg-[#1D4ED8] text-white font-semibold text-xs">
-                {displayName.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          </button>
-        </div>
-      </aside>
+      </div>
     );
   }
 
   return (
-    <aside
-      className={`w-full md:w-80 border-r border-[#E2E8F0] flex flex-col h-full bg-white shrink-0 ${className}`}
-    >
-      <div className="p-3.5 border-b border-[#E2E8F0] flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[#0F172A] tracking-wide">
-            {title}
-          </h2>
-          <div className="flex items-center gap-1">
-            {onCollapse && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={onCollapse}
-                aria-label="Thu gọn danh sách"
-                className="h-7 w-7 text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9]"
-              >
-                <PanelLeftClose className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="space-y-2.5 border-b border-[#E2E8F0] p-3.5">
         {isStudent && (
           <Button
             type="button"
@@ -245,18 +139,21 @@ export function ChatSidebar({
         )}
 
         <div className="relative">
-          <Search className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-3.5 h-3.5 text-[#475569] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <Input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder={searchPlaceholder}
-            className="pl-9 h-9 text-xs rounded-lg border-[#CBD5E1] bg-white text-[#0F172A] placeholder:text-[#94A3B8] focus:border-[#1D4ED8] focus:ring-1 focus:ring-[#1D4ED8]"
+            aria-label={searchPlaceholder}
+            className="pl-8 pr-3 h-8 text-xs rounded-lg border-[#94A3B8] bg-[#EFF4FF] text-[#0F172A] placeholder:text-[#64748B] shadow-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20"
           />
         </div>
+
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-white">
+        <h2 className="px-2 py-2 text-[11px] font-medium text-[#64748B]">HỘI THOẠI TƯ VẤN</h2>
         {isLoading ? (
           <div className="space-y-2 p-1">
             <Skeleton className="h-14 w-full rounded-lg bg-[#F1F5F9]" />
@@ -360,7 +257,7 @@ export function ChatSidebar({
                       isSelected ? "text-[#1E40AF]/85" : "text-[#475569]"
                     }`}
                   >
-                    <span>{conv.partnerDepartment || "Cố vấn"}</span>
+                    <span>{isStudent ? conv.partnerDepartment || "Cố vấn" : "Sinh viên"}</span>
                     <span className="mx-1 text-[#94A3B8]">•</span>
                     <span>{conv.lastMessage || "Bắt đầu cuộc trò chuyện..."}</span>
                   </p>
@@ -371,60 +268,6 @@ export function ChatSidebar({
         )}
       </div>
 
-      <div ref={menuRef} className="p-2 border-t border-[#E2E8F0] relative bg-white">
-        {profileMenuOpen && (
-          <div className="absolute bottom-full left-2 right-2 mb-2 bg-white border border-[#CBD5E1] rounded-xl shadow-xl py-1.5 z-40 text-[#0F172A]">
-            <div className="px-3.5 py-2 border-b border-[#E2E8F0]">
-              <p className="text-xs font-semibold text-[#0F172A] truncate">
-                {displayName}
-              </p>
-              {displayEmail && (
-                <p className="text-[11px] text-[#475569] truncate mt-0.5">
-                  {displayEmail}
-                </p>
-              )}
-              <span className="inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">
-                {displayRole}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setProfileMenuOpen(false);
-                onLogout?.();
-              }}
-              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs text-[#B91C1C] hover:bg-[#FEF2F2] transition-colors text-left font-medium"
-            >
-              <LogOut className="w-4 h-4 shrink-0" />
-              <span>Đăng xuất</span>
-            </button>
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-          className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-[#F1F5F9] transition-colors text-left"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Avatar className="h-8 w-8 ring-1 ring-[#CBD5E1]">
-              <AvatarFallback className="bg-[#1D4ED8] text-white font-semibold text-xs">
-                {displayName.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-[#0F172A] truncate">
-                {displayName}
-              </p>
-              <p className="text-[11px] text-[#475569] truncate">
-                {displayRole}
-              </p>
-            </div>
-          </div>
-          <MoreHorizontal className="w-4 h-4 text-[#64748B] shrink-0 ml-1" />
-        </button>
-      </div>
-    </aside>
+    </div>
   );
 }
