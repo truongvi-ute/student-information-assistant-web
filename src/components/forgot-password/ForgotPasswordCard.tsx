@@ -1,3 +1,5 @@
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -89,13 +91,13 @@ export const ForgotPasswordCard: React.FC = () => {
   const header = getHeaderInfo();
 
   return (
-    <div className="w-full max-w-[400px] flex flex-col z-20 text-white">
+    <div className="w-full max-w-[440px] flex flex-col z-20 text-slate-900">
       {/* Tiêu đề & phụ đề */}
-      <div className="text-center">
-        <h2 className="text-[26px] sm:text-[28px] font-bold text-white tracking-tight leading-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.4)]">
+      <div className="text-left">
+        <h2 className="text-2xl font-semibold leading-8 tracking-tight text-slate-900">
           {header.title}
         </h2>
-        <p className="text-[13.5px] text-[#cbd5e1] mt-1.5 font-normal leading-relaxed">
+        <p className="mt-1.5 text-sm leading-5 text-slate-500">
           {header.subtitle}
         </p>
       </div>
@@ -104,9 +106,9 @@ export const ForgotPasswordCard: React.FC = () => {
       {error && (
         <div
           role="alert"
-          className="mt-4 p-3 rounded-[7px] bg-red-500/20 border border-red-500/40 text-red-200 text-[13px] flex items-start gap-2.5 backdrop-blur-sm animate-fadeIn"
+          className="mt-4 p-3 rounded-[7px] bg-red-50 border border-red-200 text-red-700 text-[13px] flex items-start gap-2.5 backdrop-blur-sm animate-fadeIn"
         >
-          <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+          <AlertCircle className="w-4 h-4 shrink-0 text-red-600 mt-0.5" />
           <div className="flex-1 leading-snug">{error}</div>
         </div>
       )}
@@ -115,9 +117,9 @@ export const ForgotPasswordCard: React.FC = () => {
       {successMessage && step !== "SUCCESS" && (
         <div
           role="status"
-          className="mt-4 p-3 rounded-[7px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-[13px] flex items-start gap-2.5 backdrop-blur-sm"
+          className="mt-4 p-3 rounded-[7px] bg-emerald-50 border border-emerald-200 text-emerald-700 text-[13px] flex items-start gap-2.5 backdrop-blur-sm"
         >
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
           <div className="flex-1 leading-snug">{successMessage}</div>
         </div>
       )}
@@ -136,33 +138,35 @@ export const ForgotPasswordCard: React.FC = () => {
               className="flex flex-col gap-4"
             >
               <div>
-                <label htmlFor="fp-email" className="block text-[13px] font-medium text-slate-200 mb-1.5">
-                  Email sinh viên HCMUTE
-                </label>
-                <div className="relative flex items-center w-full h-[42px] rounded-[7px] border border-white/15 bg-white/[0.07] hover:border-white/25 focus-within:border-blue-400 focus-within:bg-white/[0.12] focus-within:ring-2 focus-within:ring-blue-400/25 transition-all">
-                  <div className="pl-3 pr-2.5 flex items-center pointer-events-none text-slate-300">
+                <div className="auth-floating-field relative flex items-center w-full h-[52px] rounded-lg border border-[#CBD5E1] bg-white hover:border-[#94A3B8] focus-within:border-[var(--chat-primary)] focus-within:ring-2 focus-within:ring-[var(--chat-primary)]/15 transition-colors duration-150 motion-reduce:transition-none has-[:disabled]:bg-slate-50 has-[:disabled]:hover:border-[#CBD5E1]">
+                  <label htmlFor="fp-email" className="auth-floating-label">
+                    Email sinh viên HCMUTE
+                  </label>
+                  <div className="pl-3 pr-2.5 flex items-center pointer-events-none text-slate-600">
                     <Mail className="w-[18px] h-[18px] stroke-[1.8]" />
                   </div>
-                  <input
+                  <Input
                     id="fp-email"
                     type="email"
-                    placeholder="example@student.hcmute.edu.vn"
+                    autoComplete="email"
+                    placeholder=" "
                     value={inputEmail}
                     onChange={(e) => {
                       setInputEmail(e.target.value);
                       if (error) setError(null);
                     }}
-                    required
+                    disabled={isLoading}
+                  required
                     autoFocus
-                    className="w-full h-full pr-3 bg-transparent text-[13.5px] text-white placeholder-slate-400 outline-none selection:bg-blue-500"
+                    className="w-full h-full border-0 rounded-none shadow-none focus-visible:ring-0 focus-visible:border-transparent pr-3 bg-transparent text-sm text-slate-900 placeholder-slate-400 outline-none selection:bg-blue-500"
                   />
                 </div>
               </div>
 
-              <button
+              <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-[42px] mt-1 rounded-[7px] bg-[#1e56a0] hover:bg-[#16437e] text-white font-medium text-[14px] flex items-center justify-center gap-2 transition-all shadow-[0_4px_12px_rgba(30,86,160,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-[42px] mt-1 rounded-[7px] bg-[var(--chat-primary)] hover:bg-[var(--chat-primary-hover)] text-white font-medium text-[14px] flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
@@ -175,12 +179,12 @@ export const ForgotPasswordCard: React.FC = () => {
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
-              </button>
+              </Button>
 
               <div className="text-center mt-3">
                 <Link
                   href={ROUTES.AUTH.LOGIN}
-                  className="text-[13px] text-blue-400 hover:text-blue-300 transition-colors inline-flex items-center gap-1.5"
+                  className="text-[13px] text-blue-600 hover:text-blue-300 transition-colors inline-flex items-center gap-1.5"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Quay lại trang Đăng nhập</span>
@@ -201,7 +205,7 @@ export const ForgotPasswordCard: React.FC = () => {
             >
               <div className="flex flex-col items-center">
                 <div className="w-full mb-2">
-                  <label className="block text-center text-[13px] font-medium text-slate-200 mb-2">
+                  <label className="block text-center text-[13px] font-medium text-slate-700 mb-2">
                     Nhập mã 6 chữ số
                   </label>
                   <OtpInput
@@ -217,15 +221,15 @@ export const ForgotPasswordCard: React.FC = () => {
 
                 <div className="mt-3 text-center">
                   {cooldown > 0 ? (
-                    <span className="text-[12.5px] text-slate-300">
-                      Gửi lại mã sau <strong className="text-blue-400 font-mono">{formatCooldown()}</strong>
+                    <span className="text-[12.5px] text-slate-600">
+                      Gửi lại mã sau <strong className="text-blue-600 font-mono">{formatCooldown()}</strong>
                     </span>
                   ) : (
                     <button
                       type="button"
                       onClick={resendOtp}
                       disabled={isLoading}
-                      className="text-[12.5px] text-blue-400 hover:text-blue-300 transition-colors font-medium hover:underline flex items-center gap-1 mx-auto"
+                      className="text-[12.5px] text-blue-600 hover:text-blue-300 transition-colors font-medium hover:underline flex items-center gap-1 mx-auto"
                     >
                       <RotateCw className="w-3 h-3" />
                       <span>Gửi lại mã OTP</span>
@@ -235,10 +239,10 @@ export const ForgotPasswordCard: React.FC = () => {
               </div>
 
               <div className="flex flex-col gap-2.5">
-                <button
+                <Button
                   type="submit"
                   disabled={isLoading || otpValue.length !== 6}
-                  className="w-full h-[42px] rounded-[7px] bg-[#1e56a0] hover:bg-[#16437e] text-white font-medium text-[14px] flex items-center justify-center gap-2 transition-all shadow-[0_4px_12px_rgba(30,86,160,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-[42px] rounded-[7px] bg-[var(--chat-primary)] hover:bg-[var(--chat-primary-hover)] text-white font-medium text-[14px] flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <>
@@ -251,12 +255,12 @@ export const ForgotPasswordCard: React.FC = () => {
                       <span>Xác thực OTP</span>
                     </>
                   )}
-                </button>
+                </Button>
 
                 <button
                   type="button"
                   onClick={goBack}
-                  className="w-full h-[36px] rounded-[7px] bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white text-[13px] flex items-center justify-center gap-1.5 transition-all"
+                  className="w-full h-[36px] rounded-[7px] bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-[13px] flex items-center justify-center gap-1.5 transition-all"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Thay đổi email</span>
@@ -278,52 +282,54 @@ export const ForgotPasswordCard: React.FC = () => {
               <PasswordField
                 id="fp-new-password"
                 label="Mật khẩu mới"
-                placeholder="Tối thiểu 6 ký tự (gồm chữ và số)"
+                placeholder=" "
                 value={newPassword}
                 onChange={(e) => {
                   setNewPassword(e.target.value);
                   if (error) setError(null);
                 }}
                 required
-                variant="glass"
+                variant="default"
                 autoComplete="new-password"
+                disabled={isLoading}
               />
 
               <PasswordField
                 id="fp-confirm-password"
                 label="Xác nhận mật khẩu mới"
-                placeholder="Nhập lại mật khẩu mới"
+                placeholder=" "
                 value={confirmPassword}
                 onChange={(e) => {
                   setConfirmPassword(e.target.value);
                   if (error) setError(null);
                 }}
                 required
-                variant="glass"
+                variant="default"
                 autoComplete="new-password"
+                disabled={isLoading}
               />
 
               {/* Hướng dẫn chính sách mật khẩu */}
-              <div className="p-2.5 rounded-[7px] bg-white/[0.04] border border-white/10 text-[12px] text-slate-300 flex flex-col gap-1">
-                <span className="font-semibold text-slate-200">Yêu cầu bảo mật:</span>
+              <div className="p-2.5 rounded-[7px] bg-slate-50 border border-slate-200 text-[12px] text-slate-600 flex flex-col gap-1">
+                <span className="font-semibold text-slate-700">Yêu cầu bảo mật:</span>
                 <span className="flex items-center gap-1.5">
-                  <Check className={`w-3.5 h-3.5 ${newPassword.length >= 6 ? "text-emerald-400" : "text-slate-500"}`} />
+                  <Check className={`w-3.5 h-3.5 ${newPassword.length >= 6 ? "text-emerald-600" : "text-slate-500"}`} />
                   Từ 6 đến 72 ký tự
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Check
                     className={`w-3.5 h-3.5 ${
-                      /[a-zA-Z]/.test(newPassword) && /\d/.test(newPassword) ? "text-emerald-400" : "text-slate-500"
+                      /[a-zA-Z]/.test(newPassword) && /\d/.test(newPassword) ? "text-emerald-600" : "text-slate-500"
                     }`}
                   />
                   Chứa ít nhất 1 chữ cái và 1 chữ số
                 </span>
               </div>
 
-              <button
+              <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-[42px] mt-1 rounded-[7px] bg-[#1e56a0] hover:bg-[#16437e] text-white font-medium text-[14px] flex items-center justify-center gap-2 transition-all shadow-[0_4px_12px_rgba(30,86,160,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-[42px] mt-1 rounded-[7px] bg-[var(--chat-primary)] hover:bg-[var(--chat-primary-hover)] text-white font-medium text-[14px] flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
@@ -336,7 +342,7 @@ export const ForgotPasswordCard: React.FC = () => {
                     <span>Đổi mật khẩu</span>
                   </>
                 )}
-              </button>
+              </Button>
             </motion.form>
           )}
 
@@ -348,22 +354,22 @@ export const ForgotPasswordCard: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               className="flex flex-col items-center text-center gap-4 py-4"
             >
-              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-[0_0_24px_rgba(16,185,129,0.3)]">
+              <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
 
-              <p className="text-[13.5px] text-slate-300 max-w-[280px]">
+              <p className="text-[13.5px] text-slate-600 max-w-[280px]">
                 Bạn có thể đăng nhập ngay bây giờ bằng mật khẩu mới vừa thiết lập.
               </p>
 
-              <button
+              <Button
                 type="button"
                 onClick={() => router.push(ROUTES.AUTH.LOGIN)}
-                className="w-full h-[42px] rounded-[7px] bg-[#1e56a0] hover:bg-[#16437e] text-white font-medium text-[14px] flex items-center justify-center gap-2 transition-all shadow-[0_4px_12px_rgba(30,86,160,0.3)]"
+                className="w-full h-[42px] rounded-[7px] bg-[var(--chat-primary)] hover:bg-[var(--chat-primary-hover)] text-white font-medium text-[14px] flex items-center justify-center gap-2 transition-all shadow-sm"
               >
                 <span>Đăng nhập ngay</span>
                 <ArrowRight className="w-4 h-4" />
-              </button>
+              </Button>
             </motion.div>
           )}
         </AnimatePresence>

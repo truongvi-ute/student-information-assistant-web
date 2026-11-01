@@ -24,9 +24,9 @@ export const AuthContainer: React.FC<AuthContainerProps> = ({
   // Xác định chế độ hiển thị và bước từ URL
   const mode: AuthMode = router.pathname === ROUTES.AUTH.REGISTER
     ? "register"
-    : router.pathname === ROUTES.AUTH.LOGIN 
-    ? "login" 
-    : initialMode;
+    : router.pathname === ROUTES.AUTH.LOGIN
+      ? "login"
+      : initialMode;
 
   const isOtpStep = router.query.step === "otp" || router.query.step === "OTP";
   const step: AuthStep = isOtpStep ? "OTP" : "FORM";
@@ -92,6 +92,7 @@ export const AuthContainer: React.FC<AuthContainerProps> = ({
     <AuthLayout
       title={pageTitle}
       description={pageDesc}
+      wide={mode === "register" && step !== "OTP"}
     >
       <div className="w-full flex justify-center overflow-visible">
         <AnimatePresence mode="wait" custom={direction} initial={false}>

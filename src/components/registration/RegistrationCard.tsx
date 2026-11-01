@@ -1,17 +1,16 @@
+import { Button } from "@/components/ui/button";
 import React from "react";
 import Link from "next/link";
 import { ROUTES } from "@/routes";
 import {
   User,
   Mail,
-  IdCard,
   ArrowRight,
   Check,
 } from "lucide-react";
 
 import { FormField } from "./FormField";
 import { PasswordField } from "./PasswordField";
-import { SocialButton } from "./SocialButton";
 import { useRegister } from "@/hooks/useRegister";
 
 interface RegistrationCardProps {
@@ -28,8 +27,6 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
     setFullName,
     email,
     setEmail,
-    studentId,
-    setStudentId,
     password,
     setPassword,
     confirmPassword,
@@ -44,27 +41,26 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
 
 
   return (
-    <div className="w-full max-w-[400px] flex flex-col z-20 text-white">
+    <div className="w-full max-w-[600px] flex flex-col z-20 text-slate-900">
       {/* Title */}
-      <div className="text-center">
-        <h2 className="text-[25px] sm:text-[26px] font-bold text-white tracking-tight leading-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.4)]">
+      <div className="text-left">
+        <h2 className="text-2xl font-semibold leading-8 tracking-tight text-slate-900">
           Tạo tài khoản
         </h2>
 
-        <p className="text-[13px] text-[#cbd5e1] mt-1 font-normal">
-          Bắt đầu hành trình học tập thông minh cùng HCMUTE Student Assistant
+        <p className="mt-1.5 text-sm leading-5 text-slate-500">
+          Tạo tài khoản để kết nối với Cố vấn.
         </p>
       </div>
 
       <form
         onSubmit={handleRegister}
         className="flex flex-col flex-1"
-        style={{ marginTop: "14px" }}
+        style={{ marginTop: "24px" }}
       >
         {/* Fields */}
         <div
-          className="flex flex-col"
-          style={{ gap: "7px" }}
+          className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2"
         >
           <FormField
             id="fullName"
@@ -77,6 +73,7 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
             icon={User}
             required
             autoComplete="name"
+            disabled={isLoading}
           />
 
           <FormField
@@ -91,30 +88,20 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
             icon={Mail}
             required
             autoComplete="email"
-          />
-
-          <FormField
-            id="studentId"
-            label="Mã sinh viên (tùy chọn)"
-            placeholder="VD: 22123456"
-            value={studentId}
-            onChange={(event) =>
-              setStudentId(event.target.value)
-            }
-            icon={IdCard}
-            autoComplete="off"
+            disabled={isLoading}
           />
 
           <PasswordField
             id="password"
             label="Mật khẩu"
-            placeholder="Tạo mật khẩu (ít nhất 8 ký tự)"
+            placeholder="Ít nhất 8 ký tự"
             value={password}
             onChange={(event) =>
               setPassword(event.target.value)
             }
             required
             autoComplete="new-password"
+            disabled={isLoading}
           />
 
           <PasswordField
@@ -129,9 +116,38 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
             }
             required
             autoComplete="new-password"
+            disabled={isLoading}
           />
         </div>
 
+
+        <div className="mt-5 border-t border-slate-200 pt-4">
+          <p className="mb-3 text-[13px] font-medium text-slate-700">
+            Thông tin học tập <span className="font-normal text-slate-500">(không bắt buộc)</span>
+          </p>
+          <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+            {[
+              { id: "majorId", label: "Ngành học", placeholder: "Chọn ngành học" },
+              { id: "educationSystemId", label: "Hệ đào tạo", placeholder: "Chọn hệ đào tạo" },
+              { id: "cohortId", label: "Khóa đào tạo", placeholder: "Chọn khóa đào tạo" },
+            ].map((field) => (
+              <div key={field.id} className={field.id === "majorId" ? "min-w-0 sm:col-span-2" : "min-w-0"}>
+                <label htmlFor={field.id} className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                  {field.label}
+                </label>
+                <select
+                  id={field.id}
+                  name={field.id}
+                  defaultValue=""
+                  disabled
+                  className="h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm text-slate-500 outline-none focus:border-[var(--chat-primary)] focus:ring-2 focus:ring-[var(--chat-primary)]/15 disabled:cursor-not-allowed"
+                >
+                  <option value="">{field.placeholder}</option>
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Đồng ý điều khoản sử dụng */}
         <div
@@ -145,8 +161,8 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
             aria-checked={consent}
             onClick={() => setConsent((previous) => !previous)}
             className={`w-[18px] h-[18px] shrink-0 rounded-[4px] mt-0.5 flex items-center justify-center transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${consent
-              ? "bg-blue-600 text-white border-blue-500"
-              : "border border-white/25 bg-white/[0.08] hover:border-white/40"
+              ? "bg-[var(--chat-primary)] text-white border-[var(--chat-primary)]"
+              : "border border-slate-300 bg-slate-50 hover:border-slate-400"
               }`}
             aria-label="Tôi đồng ý với Điều khoản sử dụng và Chính sách bảo mật"
           >
@@ -157,13 +173,13 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
 
           <label
             htmlFor="registration-consent"
-            className="text-[12.5px] text-slate-300 leading-snug cursor-pointer select-none"
+            className="text-[12.5px] text-slate-600 leading-snug cursor-pointer select-none"
           >
             Tôi đồng ý với{" "}
             <Link
               href={ROUTES.PUBLIC.TERMS}
               onClick={(event) => event.stopPropagation()}
-              className="text-[#38bdf8] hover:text-[#7dd3fc] hover:underline font-medium"
+              className="text-[var(--chat-primary)] hover:text-[var(--chat-primary-hover)] hover:underline font-medium"
             >
               Điều khoản sử dụng
             </Link>{" "}
@@ -171,7 +187,7 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
             <Link
               href={ROUTES.PUBLIC.PRIVACY}
               onClick={(event) => event.stopPropagation()}
-              className="text-[#38bdf8] hover:text-[#7dd3fc] hover:underline font-medium"
+              className="text-[var(--chat-primary)] hover:text-[var(--chat-primary-hover)] hover:underline font-medium"
             >
               Chính sách bảo mật
             </Link>{" "}
@@ -182,10 +198,10 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
 
         {/* Submit */}
         <div>
-          <button
+          <Button
             type="submit"
             disabled={isLoading}
-            className="cta-gradient-btn w-full h-[44px] rounded-[7px] text-white font-semibold text-[15px] flex items-center justify-center gap-2 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_4px_16px_rgba(74,92,255,0.4)]"
+            className="bg-[var(--chat-primary)] hover:bg-[var(--chat-primary-hover)] w-full h-[44px] rounded-[7px] text-white font-semibold text-[15px] flex items-center justify-center gap-2 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
             style={{
               marginTop: "11px",
             }}
@@ -202,10 +218,10 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
                 aria-hidden="true"
               />
             )}
-          </button>
+          </Button>
 
           {successMessage && (
-            <p className="mt-2.5 p-2 rounded-[7px] text-[13px] bg-emerald-950/70 border border-emerald-500/40 text-emerald-200">
+            <p className="mt-2.5 p-2 rounded-[7px] text-[13px] bg-emerald-50 border border-emerald-200 text-emerald-700">
               {successMessage}
             </p>
           )}
@@ -213,48 +229,28 @@ export const RegistrationCard: React.FC<RegistrationCardProps> = ({
           {errorMessage && (
             <p
               role="alert"
-              className="mt-2.5 p-2 rounded-[7px] text-[13px] bg-red-950/70 border border-red-500/40 text-red-200"
+              className="mt-2.5 p-2 rounded-[7px] text-[13px] bg-red-50 border border-red-200 text-red-700"
             >
               {errorMessage}
             </p>
           )}
         </div>
 
-        {/* Separator */}
-        <div
-          className="relative flex items-center justify-center"
-          style={{ marginTop: "12px" }}
-        >
-          <div className="w-full border-t border-white/15" />
-
-          <span className="bg-[#0b234f] px-3 py-0.5 text-[11.5px] text-slate-300 absolute rounded-full border border-white/15">
-            Hoặc đăng ký nhanh với
-          </span>
-        </div>
-
-        {/* Social */}
-        <div
-          className="flex items-center gap-3"
-          style={{ marginTop: "10px" }}
-        >
-          <SocialButton provider="google" variant="glass" />
-        </div>
-
         {/* Footer: Already have an account */}
-        <div className="mt-2.5 text-center text-[13px] text-slate-300">
+        <div className="mt-2.5 text-center text-[13px] text-slate-600">
           <span>Đã có tài khoản? </span>
           {onSwitchToLogin ? (
             <button
               type="button"
               onClick={onSwitchToLogin}
-              className="text-[#38bdf8] hover:text-[#7dd3fc] hover:underline font-semibold cursor-pointer transition-colors"
+              className="text-[var(--chat-primary)] hover:text-[var(--chat-primary-hover)] hover:underline font-semibold cursor-pointer transition-colors"
             >
               Đăng nhập ngay
             </button>
           ) : (
             <Link
               href={ROUTES.AUTH.LOGIN}
-              className="text-[#38bdf8] hover:text-[#7dd3fc] hover:underline font-semibold"
+              className="text-[var(--chat-primary)] hover:text-[var(--chat-primary-hover)] hover:underline font-semibold"
             >
               Đăng nhập ngay
             </Link>
