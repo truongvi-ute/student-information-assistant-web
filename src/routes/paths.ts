@@ -1,4 +1,3 @@
-
 import type {
   VerifyOtpUrlOptions,
   RegisterUrlOptions,
@@ -30,7 +29,7 @@ export const ROUTES = {
     SUPPORT: "#ho-tro",
   },
 
-  // Các trang dành cho người dùng đã đăng nhập
+  // Các trang dành cho người dùng đã đăng nhập (Chung)
   PORTAL: {
     DASHBOARD: "/dashboard",
     CHAT: "/chat",
@@ -38,6 +37,22 @@ export const ROUTES = {
     SCHEDULE: "/schedule",
     PROFILE: "/profile",
     NOTIFICATIONS: "/notifications",
+  },
+
+  // Phân hệ Quản trị viên (Admin)
+  ADMIN: {
+    DASHBOARD: "/admin",
+    USERS: "/admin/users",
+    DEPARTMENTS: "/admin/departments",
+    DOCUMENTS: "/admin/documents",
+    SETTINGS: "/admin/settings",
+  },
+
+  // Phân hệ Cố vấn học tập (Advisor)
+  ADVISOR: {
+    DASHBOARD: "/advisor",
+    STUDENTS: "/advisor/students",
+    APPOINTMENTS: "/advisor/appointments",
   },
 } as const;
 

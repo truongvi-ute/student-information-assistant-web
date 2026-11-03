@@ -101,7 +101,6 @@ export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
     layout: "auth",
     description: "Thiết lập mật khẩu mới cho tài khoản.",
   },
-
   [ROUTES.PORTAL.TRAINING]: {
     path: ROUTES.PORTAL.TRAINING,
     title: "Thông tin đào tạo — HCMUTE Student Assistant",
@@ -109,7 +108,6 @@ export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
     layout: "dashboard",
     description: "Tra cứu thông tin đào tạo của sinh viên.",
   },
-
   [ROUTES.PORTAL.NOTIFICATIONS]: {
     path: ROUTES.PORTAL.NOTIFICATIONS,
     title: "Thông báo — HCMUTE Student Assistant",
@@ -117,8 +115,25 @@ export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
     layout: "dashboard",
     description: "Xem thông báo dành cho sinh viên.",
   },
-};
 
+  // Phân hệ Quản trị viên (Admin)
+  [ROUTES.ADMIN.DASHBOARD]: {
+    path: ROUTES.ADMIN.DASHBOARD,
+    title: "Quản trị hệ thống — HCMUTE Student Assistant",
+    access: "admin",
+    layout: "dashboard",
+    description: "Bảng tổng quan quản trị hệ thống.",
+  },
+
+  // Phân hệ Cố vấn học tập (Advisor)
+  [ROUTES.ADVISOR.DASHBOARD]: {
+    path: ROUTES.ADVISOR.DASHBOARD,
+    title: "Cổng Cố vấn học tập — HCMUTE Student Assistant",
+    access: "protected",
+    layout: "dashboard",
+    description: "Bàn làm việc của Cố vấn học tập.",
+  },
+};
 
 /**
  * Lấy danh sách đường dẫn theo quyền truy cập.

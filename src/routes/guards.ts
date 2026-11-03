@@ -80,10 +80,17 @@ export function isAuthOnlyRoute(pathname: string): boolean {
 }
 
 /**
- * Kiểm tra route yêu cầu đăng nhập.
+ * Kiểm tra route dành riêng cho Quản trị viên.
+ */
+export function isAdminRoute(pathname: string): boolean {
+  return hasRouteAccess(pathname, "admin");
+}
+
+/**
+ * Kiểm tra route yêu cầu đăng nhập (bao gồm cả route Admin).
  */
 export function isProtectedRoute(pathname: string): boolean {
-  return hasRouteAccess(pathname, "protected");
+  return hasRouteAccess(pathname, "protected") || hasRouteAccess(pathname, "admin");
 }
 
 /**
@@ -95,7 +102,7 @@ export function determineRedirect(
 ): string | null {
   // Đã đăng nhập thì không vào trang đăng nhập, đăng ký.
   if (isAuthenticated && isAuthOnlyRoute(pathname)) {
-    return ROUTES.PUBLIC.CHATBOT
+    return ROUTES.PUBLIC.CHATBOT;
   }
 
   // Chưa đăng nhập thì chuyển về login.
