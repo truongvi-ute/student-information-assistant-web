@@ -1,4 +1,3 @@
-
 import {
   createContext,
   useContext,
@@ -10,12 +9,14 @@ import {
 import { authStorage } from "@/utils/auth-storage";
 import { authService } from "@/services/auth.service";
 import type { UserProfile } from "@/types/auth";
+import { ApiClientError } from "@/lib/api/api-error";
 
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   postLoginRedirect: string | null;
+  profileError: string | null
   login: (token: string, refreshToken?: string, user?: UserProfile, redirectTo?: string) => void;
   logout: () => void;
   refreshProfile: () => Promise<void>;
@@ -33,37 +34,85 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [postLoginRedirect, setPostLoginRedirect] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const refreshProfile = useCallback(async () => {
+    setProfileError(null);
+
     try {
       const profile = await authService.getProfile();
+
       setUser(profile);
-    } catch (error) {
-      console.error("Không thể cập nhật thông tin người dùng:", error);
+      setIsAuthenticated(true);
+    } catch (error: unknown) {
+      if (error instanceof ApiClientError && error.status === 401) {
+        authStorage.clearAuth();
+        setUser(null);
+        setIsAuthenticated(false);
+        setPostLoginRedirect(null);
+      } else {
+        setProfileError(
+          error instanceof Error
+            ? error.message
+            : "Không thể tải thông tin tài khoản."
+        );
+      }
+
+      throw error;
     }
   }, []);
 
   // Khôi phục thông tin đăng nhập khi ứng dụng khởi tạo.
   useEffect(() => {
-    try {
-      const token = authStorage.getToken();
-      const savedUser = token ? authStorage.getUser() : null;
+    let cancelled = false;
 
-      setUser(savedUser);
-      setIsAuthenticated(Boolean(token));
+    const restoreSession = async () => {
+      try {
+        const token = authStorage.getToken();
 
-      if (token && (!savedUser || !savedUser.fullName)) {
-        void refreshProfile();
+        if (!token) {
+          if (!cancelled) {
+            setUser(null);
+            setIsAuthenticated(false);
+          }
+          return;
+        }
+
+        const profile = await authService.getProfile();
+
+        if (!cancelled) {
+          setUser(profile);
+          setIsAuthenticated(true);
+          setProfileError(null);
+        }
+      } catch (error: unknown) {
+        if (cancelled) return;
+
+        setUser(null);
+        setIsAuthenticated(false);
+
+        if (error instanceof ApiClientError && error.status === 401) {
+          authStorage.clearAuth();
+        } else {
+          setProfileError(
+            error instanceof Error
+              ? error.message
+              : "Không thể kiểm tra phiên đăng nhập."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
-    } catch (error) {
-      console.error("Không thể khôi phục phiên đăng nhập:", error);
+    };
 
-      setUser(null);
-      setIsAuthenticated(false);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [refreshProfile]);
+    void restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Cập nhật trạng thái sau khi đăng nhập thành công.
   const login = useCallback(
@@ -89,6 +138,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(currentUser);
       setPostLoginRedirect(redirectTo ?? null);
       setIsAuthenticated(true);
+      setProfileError(null);
     },
     []
   );
@@ -100,6 +150,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null);
     setIsAuthenticated(false);
     setPostLoginRedirect(null);
+    setProfileError(null);
   }, []);
 
 
@@ -119,6 +170,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         logout,
         refreshProfile,
         clearPostLoginRedirect,
+        profileError,
       }}
     >
       {children}

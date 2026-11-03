@@ -10,7 +10,7 @@ interface SocialButtonProps {
 export const SocialButton: React.FC<SocialButtonProps> = ({
   onClick,
   actionText = "Đăng ký",
-  variant = "glass",
+  variant = "default",
 }) => {
   const isGlass = variant === "glass";
 
