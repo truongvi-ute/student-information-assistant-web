@@ -14,8 +14,7 @@ export const SiteHeader: React.FC = () => {
 
   return (
     <header
-      // SiteHeader luôn giữ vị trí khi cuộn thì dùng gì
-      className="w-full fixed top-0 left-0 z-30 h-[85px] pointer-events-auto"
+      className="w-full fixed top-0 left-0 z-30 h-14 sm:h-16 bg-[#071a3d]/90 backdrop-blur-md border-b border-white/10 pointer-events-auto"
       role="banner"
     >
       {/* Desktop Exact Canvas Header (xl) */}
@@ -23,25 +22,25 @@ export const SiteHeader: React.FC = () => {
         {/* Brand logo & title */}
         <Link
           href={ROUTES.PUBLIC.HOME}
-          className="absolute flex items-center gap-2 text-white hover:opacity-90 transition-opacity"
+          className="absolute -translate-y-1/2 flex items-center gap-2 text-white hover:opacity-90 transition-opacity"
           style={{
-            left: "109px",
-            top: "37px",
+            left: "32px",
+            top: "50%",
           }}
           aria-label="HCMUTE Student Assistant Trang chủ"
         >
-          <BookOpen className="w-[32px] h-[32px] text-white stroke-[2.2]" aria-hidden="true" />
-          <span className="font-bold text-[20px] tracking-wide text-white ml-0.5">HCMUTE</span>
+          <BookOpen className="w-[28px] h-[28px] text-white stroke-[2.2]" aria-hidden="true" />
+          <span className="font-bold text-[18px] tracking-wide text-white ml-0.5">HCMUTE</span>
           <span className="text-white/40 text-[18px] font-light mx-1" aria-hidden="true">|</span>
-          <span className="font-semibold text-[18px] text-white tracking-tight">STUDENT ASSISTANT</span>
+          <span className="font-semibold text-[16px] text-white tracking-tight">STUDENT ASSISTANT</span>
         </Link>
 
         {/* Right: Combined Navigation and Auth Action (Keeps center 100% clear over the building) */}
         <div
-          className="absolute flex items-center gap-6"
+          className="absolute -translate-y-1/2 flex items-center gap-5"
           style={{
-            right: "101px",
-            top: "32px",
+            right: "32px",
+            top: "50%",
           }}
         >
           <nav
@@ -79,7 +78,7 @@ export const SiteHeader: React.FC = () => {
             <Link
               href={actionHref}
               className="inline-flex items-center justify-center gap-2 rounded-full border-[1.5px] border-white/85 text-white text-[14.5px] font-medium hover:bg-white/10 active:scale-95 transition-all outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 backdrop-blur-md"
-              style={{ width: "130px", height: "43px" }}
+              style={{ width: "112px", height: "36px" }}
             >
               <span>{actionText}</span>
               <ArrowRight className="w-4 h-4 stroke-[2.2]" aria-hidden="true" />
@@ -97,8 +96,8 @@ export const SiteHeader: React.FC = () => {
         >
           <BookOpen className="w-[26px] h-[26px] sm:w-[30px] sm:h-[30px] text-white stroke-[2.2]" aria-hidden="true" />
           <span className="font-bold text-[17px] sm:text-[19px] tracking-wide text-white">HCMUTE</span>
-          <span className="text-white/40 text-[16px] font-light" aria-hidden="true">|</span>
-          <span className="font-semibold text-[16px] sm:text-[17px] text-white tracking-tight">TLCN AI</span>
+          <span className="hidden sm:inline text-white/40 text-[16px] font-light" aria-hidden="true">|</span>
+          <span className="hidden sm:inline font-semibold text-[16px] sm:text-[17px] text-white tracking-tight">TLCN AI</span>
         </Link>
 
         <div className="flex items-center gap-2.5 sm:gap-4">
