@@ -4,9 +4,7 @@ import {
   Users,
   BookOpen,
   FileText,
-  Settings,
   MessageSquare,
-  Calendar,
 } from "lucide-react";
 import { ROUTES } from "@/routes";
 
@@ -19,61 +17,49 @@ export interface NavItem {
 }
 
 export const DASHBOARD_NAV_ITEMS: NavItem[] = [
-  // --- Phân hệ ADMIN ---
+  // --- Phân hệ ADMIN (UC10, UC11, UC12) ---
   {
     title: "Tổng quan",
-    href: "/admin",
+    href: ROUTES.ADMIN.DASHBOARD,
     icon: LayoutDashboard,
     roles: ["ADMIN"],
   },
   {
     title: "Quản lý người dùng",
-    href: "/admin/users",
+    href: ROUTES.ADMIN.USERS,
     icon: Users,
     roles: ["ADMIN"],
   },
   {
-    title: "Khoa & Ngành",
-    href: "/admin/departments",
+    title: "Danh mục đào tạo",
+    href: ROUTES.ADMIN.DEPARTMENTS,
     icon: BookOpen,
     roles: ["ADMIN"],
   },
   {
-    title: "Tài liệu đào tạo",
-    href: "/admin/documents",
+    title: "Kho tài liệu & RAG",
+    href: ROUTES.ADMIN.DOCUMENTS,
     icon: FileText,
     roles: ["ADMIN"],
   },
-  {
-    title: "Cấu hình hệ thống",
-    href: "/admin/settings",
-    icon: Settings,
-    roles: ["ADMIN"],
-  },
 
-  // --- Phân hệ ADVISOR ---
+  // --- Phân hệ ADVISOR (UC08, UC09) ---
   {
     title: "Bàn làm việc",
-    href: "/advisor",
+    href: ROUTES.ADVISOR.DASHBOARD,
     icon: LayoutDashboard,
     roles: ["ADVISOR"],
   },
   {
-    title: "Sinh viên phụ trách",
-    href: "/advisor/students",
-    icon: Users,
-    roles: ["ADVISOR"],
-  },
-  {
-    title: "Tư vấn & Tin nhắn",
+    title: "Tư vấn trực tiếp",
     href: ROUTES.PORTAL.CHAT,
     icon: MessageSquare,
     roles: ["ADVISOR"],
   },
   {
-    title: "Lịch tiếp sinh viên",
-    href: "/advisor/appointments",
-    icon: Calendar,
+    title: "Quản lý tài liệu",
+    href: ROUTES.ADVISOR.DOCUMENTS,
+    icon: FileText,
     roles: ["ADVISOR"],
   },
 ];
@@ -88,4 +74,3 @@ export function getNavItemsByRole(role?: string): NavItem[] {
     item.roles.some((r) => r === normalizedRole)
   );
 }
-
