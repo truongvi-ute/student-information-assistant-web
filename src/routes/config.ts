@@ -82,7 +82,7 @@ export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
   },
   [ROUTES.PORTAL.PROFILE]: {
     path: ROUTES.PORTAL.PROFILE,
-    title: "Hồ sơ sinh viên — HCMUTE Student Assistant",
+    title: "Hồ sơ cá nhân — HCMUTE Student Assistant",
     access: "protected",
     layout: "dashboard",
     description: "Thông tin cá nhân, chuyên ngành, hệ đào tạo và niên khóa.",
@@ -113,25 +113,53 @@ export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
     title: "Thông báo — HCMUTE Student Assistant",
     access: "protected",
     layout: "dashboard",
-    description: "Xem thông báo dành cho sinh viên.",
+    description: "Xem thông báo dành cho người dùng.",
   },
 
   // Phân hệ Quản trị viên (Admin)
   [ROUTES.ADMIN.DASHBOARD]: {
     path: ROUTES.ADMIN.DASHBOARD,
-    title: "Quản trị hệ thống — HCMUTE Student Assistant",
+    title: "Tổng quan hệ thống",
     access: "admin",
     layout: "dashboard",
     description: "Bảng tổng quan quản trị hệ thống.",
   },
+  [ROUTES.ADMIN.USERS]: {
+    path: ROUTES.ADMIN.USERS,
+    title: "Quản lý người dùng",
+    access: "admin",
+    layout: "dashboard",
+    description: "Tra cứu hồ sơ Sinh viên, Tư vấn viên và quản lý trạng thái truy cập.",
+  },
+  [ROUTES.ADMIN.DEPARTMENTS]: {
+    path: ROUTES.ADMIN.DEPARTMENTS,
+    title: "Quản lý danh mục đào tạo",
+    access: "admin",
+    layout: "dashboard",
+    description: "Quản lý danh mục Ngành học, Hệ đào tạo, Khóa đào tạo và Phòng ban.",
+  },
+  [ROUTES.ADMIN.DOCUMENTS]: {
+    path: ROUTES.ADMIN.DOCUMENTS,
+    title: "Quản lý kho tài liệu",
+    access: "admin",
+    layout: "dashboard",
+    description: "Quản lý kho tài liệu RAG và xét duyệt yêu cầu thay đổi tài liệu.",
+  },
 
-  // Phân hệ Cố vấn học tập (Advisor)
+  // Phân hệ Tư vấn viên (Advisor)
   [ROUTES.ADVISOR.DASHBOARD]: {
     path: ROUTES.ADVISOR.DASHBOARD,
-    title: "Cổng Cố vấn học tập — HCMUTE Student Assistant",
+    title: "Bàn làm việc Tư vấn viên",
     access: "protected",
     layout: "dashboard",
-    description: "Bàn làm việc của Cố vấn học tập.",
+    description: "Bàn làm việc tổng quan của Tư vấn viên.",
+  },
+  [ROUTES.ADVISOR.DOCUMENTS]: {
+    path: ROUTES.ADVISOR.DOCUMENTS,
+    title: "Quản lý yêu cầu tài liệu",
+    access: "protected",
+    layout: "dashboard",
+    description: "Tải lên tài liệu nháp và gửi yêu cầu xét duyệt nguồn tri thức RAG.",
   },
 };
 

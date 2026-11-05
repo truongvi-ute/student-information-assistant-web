@@ -45,14 +45,12 @@ export const ROUTES = {
     USERS: "/admin/users",
     DEPARTMENTS: "/admin/departments",
     DOCUMENTS: "/admin/documents",
-    SETTINGS: "/admin/settings",
   },
 
-  // Phân hệ Cố vấn học tập (Advisor)
+  // Phân hệ Tư vấn viên (Advisor)
   ADVISOR: {
     DASHBOARD: "/advisor",
-    STUDENTS: "/advisor/students",
-    APPOINTMENTS: "/advisor/appointments",
+    DOCUMENTS: "/advisor/documents",
   },
 } as const;
 
