@@ -67,10 +67,15 @@ export function AppSidebar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const isStudent = role === "STUDENT";
+  const effectiveRole = currentUser?.role?.toUpperCase() || role;
   const displayName = currentUser?.fullName || currentUser?.email || "Tài khoản";
   const displayEmail = currentUser?.email || "";
-  const displayRole = isStudent ? "Sinh viên" : "Cố vấn";
+  const displayRole =
+    effectiveRole === "ADMIN"
+      ? "Quản trị viên"
+      : effectiveRole === "ADVISOR"
+        ? "Tư vấn viên"
+        : "Sinh viên";
 
   if (isCollapsed) {
     return (
