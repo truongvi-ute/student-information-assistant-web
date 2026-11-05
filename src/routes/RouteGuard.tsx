@@ -1,8 +1,11 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "@/contexts/AuthContext";
-import { ROUTES } from "./paths";
-import { determineRedirect, getRouteConfig } from "./guards";
+import {
+  determineRedirect,
+  getDefaultHomeByRole,
+  getRouteConfig,
+} from "./guards";
 
 interface RouteGuardProps {
   children: ReactNode;
@@ -14,8 +17,9 @@ interface RouteGuardProps {
 /**
  * Kiểm tra đường dẫn chuyển hướng sau đăng nhập.
  */
-function getSafePostLoginRedirect(path: string): string {
+function getSafePostLoginRedirect(path: string, role?: string | null): string {
   const target = path.trim();
+  const defaultHome = getDefaultHomeByRole(role);
 
   // Chỉ cho phép đường dẫn nội bộ.
   if (
@@ -24,12 +28,12 @@ function getSafePostLoginRedirect(path: string): string {
     target.includes("\\") ||
     /[\u0000-\u001F\u007F]/.test(target)
   ) {
-    return ROUTES.PORTAL.CHAT;
+    return defaultHome;
   }
 
   // Không chuyển người đã đăng nhập về các trang xác thực.
   if (getRouteConfig(target)?.access === "auth-only") {
-    return ROUTES.PORTAL.CHAT;
+    return defaultHome;
   }
 
   return target;
@@ -43,6 +47,7 @@ export function RouteGuard({
 }: RouteGuardProps) {
   const router = useRouter();
   const {
+    user,
     isAuthenticated: contextIsAuthenticated,
     isLoading: contextIsLoading,
     postLoginRedirect,
@@ -58,9 +63,13 @@ export function RouteGuard({
 
   if (router.isReady && !isAuthLoading && !isPublic) {
     if (isAuthenticated && isAuthOnly && postLoginRedirect) {
-      redirectTarget = getSafePostLoginRedirect(postLoginRedirect);
+      redirectTarget = getSafePostLoginRedirect(postLoginRedirect, user?.role);
     } else {
-      redirectTarget = determineRedirect(router.asPath, isAuthenticated);
+      redirectTarget = determineRedirect(
+        router.asPath,
+        isAuthenticated,
+        user?.role
+      );
     }
   }
   useEffect(() => {

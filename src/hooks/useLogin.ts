@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/services/auth.service";
 import { authStorage } from "@/utils/auth-storage";
 import { ApiClientError } from "@/lib/api/api-error";
-import { ROUTES } from "@/routes";
+import { getDefaultHomeByRole } from "@/routes";
 import { validateLoginForm } from "@/validations/auth.validation";
 
 interface UseLoginOptions {
@@ -84,10 +84,15 @@ export function useLogin(options?: UseLoginOptions) {
         );
       }
 
+      const resolvedRole =
+        response.role ||
+        response.user?.role ||
+        authStorage.getUser()?.role;
+
       const redirectTarget =
         typeof router.query.redirect === "string" && router.query.redirect
           ? router.query.redirect
-          : ROUTES.PORTAL.CHAT;
+          : getDefaultHomeByRole(resolvedRole);
 
       setSuccessMessage(
         response.message || "Đăng nhập thành công! Đang chuyển hướng..."
