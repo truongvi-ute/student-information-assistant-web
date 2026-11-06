@@ -94,20 +94,53 @@ export function isProtectedRoute(pathname: string): boolean {
 }
 
 /**
- * Xác định đường dẫn chuyển hướng dựa trên trạng thái đăng nhập.
+ * Xác định trang chủ mặc định theo vai trò (Role) của người dùng.
+ */
+export function getDefaultHomeByRole(role?: string | null): string {
+  const normalizedRole = role?.toUpperCase();
+
+  if (normalizedRole === "ADMIN") {
+    return ROUTES.ADMIN.DASHBOARD;
+  }
+
+  if (normalizedRole === "ADVISOR") {
+    return ROUTES.ADVISOR.DASHBOARD;
+  }
+
+  return ROUTES.PORTAL.CHAT;
+}
+
+/**
+ * Xác định đường dẫn chuyển hướng dựa trên trạng thái đăng nhập và vai trò.
  */
 export function determineRedirect(
   pathname: string,
-  isAuthenticated: boolean
+  isAuthenticated: boolean,
+  userRole?: string | null
 ): string | null {
+  const normalizedRole = userRole?.toUpperCase();
+
   // Đã đăng nhập thì không vào trang đăng nhập, đăng ký.
   if (isAuthenticated && isAuthOnlyRoute(pathname)) {
-    return ROUTES.PUBLIC.CHATBOT;
+    return getDefaultHomeByRole(normalizedRole);
   }
 
   // Chưa đăng nhập thì chuyển về login.
   if (!isAuthenticated && isProtectedRoute(pathname)) {
     return buildLoginUrl({ redirect: pathname });
+  }
+
+  // Kiểm tra phân quyền khi đã đăng nhập.
+  if (isAuthenticated) {
+    // Không phải ADMIN thì không được vào các trang /admin/*
+    if (isAdminRoute(pathname) && normalizedRole !== "ADMIN") {
+      return getDefaultHomeByRole(normalizedRole);
+    }
+
+    // ADMIN không sử dụng giao diện Tư vấn trực tiếp (/chat)
+    if (normalizedRole === "ADMIN" && matchPath(pathname, ROUTES.PORTAL.CHAT)) {
+      return ROUTES.ADMIN.DASHBOARD;
+    }
   }
 
   // Không cần chuyển hướng.

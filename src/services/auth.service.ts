@@ -40,7 +40,10 @@ export const authService = {
       }
 
       if (response.user) {
-        authStorage.setUser(response.user);
+        authStorage.setUser({
+          ...response.user,
+          role: response.user.role || response.role,
+        });
       } else {
         try {
           await this.getProfile();
@@ -49,6 +52,7 @@ export const authService = {
             id: authStorage.getAccountId() || "",
             email: data.email.trim(),
             fullName: data.email.trim().split("@")[0] || "",
+            role: response.role,
           });
         }
       }

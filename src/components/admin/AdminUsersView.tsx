@@ -17,78 +17,9 @@ import type {
   AccountStatusType,
 } from "@/types/admin";
 
-const INITIAL_USERS: ManagedUser[] = [
-  {
-    id: "USR-001",
-    fullName: "Đào Nguyễn Nhật Anh",
-    email: "23110073@student.hcmute.edu.vn",
-    role: "STUDENT",
-    status: "ACTIVE",
-    mustChangePassword: false,
-    createdAt: "15/08/2026",
-    majorName: "Công nghệ thông tin",
-    educationSystemName: "Đại học chính quy",
-    cohortName: "Khóa 2023 (K23)",
-    note: "Sinh viên hệ đại trà",
-  },
-  {
-    id: "USR-002",
-    fullName: "Nguyễn Đoàn Trường Vĩ",
-    email: "23110173@student.hcmute.edu.vn",
-    role: "STUDENT",
-    status: "ACTIVE",
-    mustChangePassword: false,
-    createdAt: "16/08/2026",
-    majorName: "Kỹ thuật phần mềm",
-    educationSystemName: "Đại học chính quy",
-    cohortName: "Khóa 2023 (K23)",
-  },
-  {
-    id: "USR-003",
-    fullName: "ThS. Nguyễn Văn An",
-    email: "annv.pdt@hcmute.edu.vn",
-    role: "ADVISOR",
-    status: "ACTIVE",
-    mustChangePassword: false,
-    createdAt: "01/08/2026",
-    departmentName: "Phòng Đào tạo",
-    phoneNumber: "0903123456",
-    note: "Phụ trách quy chế học vụ và xét tốt nghiệp",
-  },
-  {
-    id: "USR-004",
-    fullName: "ThS. Trần Thị Bích",
-    email: "bichtt.ctsv@hcmute.edu.vn",
-    role: "ADVISOR",
-    status: "ACTIVE",
-    mustChangePassword: true,
-    createdAt: "20/08/2026",
-    departmentName: "Phòng Công tác Sinh viên",
-    phoneNumber: "0918654321",
-    note: "Phụ trách học bổng và điểm rèn luyện",
-  },
-  {
-    id: "USR-005",
-    fullName: "Lê Minh Hoàng",
-    email: "24110888@student.hcmute.edu.vn",
-    role: "STUDENT",
-    status: "BLOCKED",
-    mustChangePassword: false,
-    createdAt: "10/09/2026",
-    majorName: "Trí tuệ nhân tạo",
-    educationSystemName: "Đại học chính quy",
-    cohortName: "Khóa 2024 (K24)",
-    note: "Tạm khóa do vi phạm quy định sử dụng hệ thống",
-  },
-];
+const INITIAL_USERS: ManagedUser[] = [];
 
-const ACTIVE_DEPARTMENTS = [
-  "Phòng Đào tạo",
-  "Phòng Công tác Sinh viên",
-  "Khoa Công nghệ thông tin",
-  "Khoa Điện - Điện tử",
-  "Khoa Cơ khí Chế tạo máy",
-];
+const ACTIVE_DEPARTMENTS: string[] = [];
 
 export function AdminUsersView() {
   const { user } = useAuth();
@@ -105,7 +36,7 @@ export function AdminUsersView() {
     fullName: "",
     email: "",
     initialPassword: "",
-    departmentName: ACTIVE_DEPARTMENTS[0],
+    departmentName: "",
     phoneNumber: "",
     note: "",
   });
@@ -198,7 +129,7 @@ export function AdminUsersView() {
       fullName: "",
       email: "",
       initialPassword: "",
-      departmentName: ACTIVE_DEPARTMENTS[0],
+      departmentName: "",
       phoneNumber: "",
       note: "",
     });
@@ -633,6 +564,7 @@ export function AdminUsersView() {
                     }
                     className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A] focus:border-[#1D4ED8] focus:outline-none"
                   >
+                    <option value="">-- Chọn phòng ban / đơn vị --</option>
                     {ACTIVE_DEPARTMENTS.map((dept) => (
                       <option key={dept} value={dept}>
                         {dept}

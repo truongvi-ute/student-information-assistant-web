@@ -14,9 +14,11 @@ async function request<T>(
   options: RequestOptions = {},
 ): Promise<T> {
   const token = authStorage.getToken();
+  const isFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string>),
   };
 
@@ -31,7 +33,9 @@ async function request<T>(
       headers,
       body:
         options.body !== undefined
-          ? JSON.stringify(options.body)
+          ? isFormData
+            ? (options.body as FormData)
+            : JSON.stringify(options.body)
           : undefined,
       credentials: "include",
     });

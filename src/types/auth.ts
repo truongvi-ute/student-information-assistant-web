@@ -22,6 +22,8 @@ export interface LoginResponse {
   accessToken?: string;
   refreshToken?: string;
   token?: string;
+  role?: string;
+  mustChangePassword?: boolean;
   user?: UserProfile;
   id?: number | string;
   email?: string;

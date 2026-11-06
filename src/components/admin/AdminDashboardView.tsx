@@ -12,63 +12,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ROUTES } from "@/routes";
 import type { PendingRequestSummary, AuditLogEntry } from "@/types/admin";
 
-const PENDING_REQUESTS: PendingRequestSummary[] = [
-  {
-    id: "REQ-01",
-    type: "ADD",
-    title: "Quy chế đào tạo trình độ đại học chính quy 2026",
-    advisor: "ThS. Nguyễn Văn A",
-    department: "Phòng Đào tạo",
-    createdAt: "10 phút trước",
-  },
-  {
-    id: "REQ-02",
-    type: "UPDATE",
-    title: "Quy định xét cấp học bổng khuyến khích học tập",
-    advisor: "ThS. Trần Thị B",
-    department: "Phòng Công tác Sinh viên",
-    createdAt: "1 giờ trước",
-  },
-  {
-    id: "REQ-03",
-    type: "DELETE",
-    title: "Hướng dẫn đăng ký học phần học kỳ phụ (Cũ)",
-    advisor: "ThS. Lê Hoàng C",
-    department: "Phòng Đào tạo",
-    createdAt: "3 giờ trước",
-  },
-];
+const PENDING_REQUESTS: PendingRequestSummary[] = [];
 
-const RECENT_AUDIT_LOGS: AuditLogEntry[] = [
-  {
-    id: 101,
-    actor: "Admin Hệ thống",
-    action: "Khởi tạo tài khoản Tư vấn viên",
-    target: "advisor.cntt@hcmute.edu.vn",
-    time: "Hôm nay, 14:20",
-  },
-  {
-    id: 102,
-    actor: "Admin Hệ thống",
-    action: "Phê duyệt yêu cầu ADD tài liệu RAG",
-    target: "Sổ tay sinh viên khóa 2026",
-    time: "Hôm nay, 11:05",
-  },
-  {
-    id: 103,
-    actor: "Admin Hệ thống",
-    action: "Cập nhật danh mục Ngành học",
-    target: "Kỹ thuật dữ liệu (ACTIVE)",
-    time: "Hôm qua, 16:40",
-  },
-  {
-    id: 104,
-    actor: "Admin Hệ thống",
-    action: "Khóa quyền truy cập tài khoản",
-    target: "23110999@student.hcmute.edu.vn",
-    time: "Hôm qua, 09:15",
-  },
-];
+const RECENT_AUDIT_LOGS: AuditLogEntry[] = [];
 
 export function AdminDashboardView() {
   const { user } = useAuth();
@@ -90,15 +36,15 @@ export function AdminDashboardView() {
   const statCards = [
     {
       title: "Tổng người dùng",
-      value: "1,248",
-      desc: "1,220 Sinh viên · 28 Tư vấn viên",
+      value: "0",
+      desc: "0 Sinh viên · 0 Tư vấn viên",
       icon: Users,
       href: ROUTES.ADMIN.USERS,
       color: "text-[#1D4ED8] bg-[#EFF6FF]",
     },
     {
       title: "Danh mục đào tạo",
-      value: "42",
+      value: "0",
       desc: "Ngành, Hệ, Khóa & Phòng ban",
       icon: BookOpen,
       href: ROUTES.ADMIN.DEPARTMENTS,
@@ -106,7 +52,7 @@ export function AdminDashboardView() {
     },
     {
       title: "Nguồn tri thức RAG",
-      value: "18",
+      value: "0",
       desc: "Tài liệu ACTIVE & READY",
       icon: FileText,
       href: ROUTES.ADMIN.DOCUMENTS,
@@ -114,7 +60,7 @@ export function AdminDashboardView() {
     },
     {
       title: "Yêu cầu chờ duyệt",
-      value: "03",
+      value: "0",
       desc: "Đề xuất từ Tư vấn viên (PENDING)",
       icon: Clock,
       href: ROUTES.ADMIN.DOCUMENTS,
@@ -213,37 +159,43 @@ export function AdminDashboardView() {
           </div>
 
           <div className="mt-4 divide-y divide-[#F1F5F9]">
-            {PENDING_REQUESTS.map((req) => (
-              <div
-                key={req.id}
-                className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`rounded px-2 py-0.5 text-[11px] font-bold ${getRequestBadge(
-                        req.type
-                      )}`}
-                    >
-                      {req.type}
-                    </span>
-                    <p className="truncate text-sm font-medium text-[#0F172A]">
-                      {req.title}
+            {PENDING_REQUESTS.length === 0 ? (
+              <p className="py-8 text-center text-sm text-[#64748B]">
+                Hiện chưa có yêu cầu tài liệu nào đang chờ xét duyệt.
+              </p>
+            ) : (
+              PENDING_REQUESTS.map((req) => (
+                <div
+                  key={req.id}
+                  className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded px-2 py-0.5 text-[11px] font-bold ${getRequestBadge(
+                          req.type
+                        )}`}
+                      >
+                        {req.type}
+                      </span>
+                      <p className="truncate text-sm font-medium text-[#0F172A]">
+                        {req.title}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-xs text-[#64748B]">
+                      Đề xuất bởi:{" "}
+                      <span className="font-medium text-[#334155]">
+                        {req.advisor}
+                      </span>{" "}
+                      ({req.department})
                     </p>
                   </div>
-                  <p className="mt-1 text-xs text-[#64748B]">
-                    Đề xuất bởi:{" "}
-                    <span className="font-medium text-[#334155]">
-                      {req.advisor}
-                    </span>{" "}
-                    ({req.department})
-                  </p>
+                  <span className="shrink-0 text-xs text-[#94A3B8]">
+                    {req.createdAt}
+                  </span>
                 </div>
-                <span className="shrink-0 text-xs text-[#94A3B8]">
-                  {req.createdAt}
-                </span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -264,27 +216,33 @@ export function AdminDashboardView() {
           </div>
 
           <div className="mt-4 divide-y divide-[#F1F5F9]">
-            {RECENT_AUDIT_LOGS.map((log) => (
-              <div
-                key={log.id}
-                className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-[#0F172A]">
-                    {log.action}
-                  </p>
-                  <p className="mt-0.5 truncate text-xs text-[#64748B]">
-                    Đối tượng:{" "}
-                    <span className="font-mono text-[#334155]">
-                      {log.target}
-                    </span>
-                  </p>
+            {RECENT_AUDIT_LOGS.length === 0 ? (
+              <p className="py-8 text-center text-sm text-[#64748B]">
+                Chưa có nhật ký hoạt động nào được ghi nhận.
+              </p>
+            ) : (
+              RECENT_AUDIT_LOGS.map((log) => (
+                <div
+                  key={log.id}
+                  className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[#0F172A]">
+                      {log.action}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-[#64748B]">
+                      Đối tượng:{" "}
+                      <span className="font-mono text-[#334155]">
+                        {log.target}
+                      </span>
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-[#94A3B8]">
+                    {log.time}
+                  </span>
                 </div>
-                <span className="shrink-0 text-xs text-[#94A3B8]">
-                  {log.time}
-                </span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
