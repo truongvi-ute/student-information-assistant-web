@@ -45,7 +45,7 @@ function ChatWorkspaceContent({ children }: { children: ReactNode }) {
     <ChatLayout
       sidebar={({ isSidebarOpen, closeSidebar, toggleSidebar }) => (
         <AppSidebar
-          role={user?.role === "ADVISOR" ? "ADVISOR" : "STUDENT"}
+          role={user?.role === "ADVISOR" ? "ADVISOR" : user?.role === "ADMIN" ? "ADMIN" : "STUDENT"}
           isChatbot={router.pathname === ROUTES.PUBLIC.CHATBOT}
           conversations={conversations}
           selectedPartnerId={selectedContact?.accountId ?? null}

@@ -10,9 +10,9 @@ import {
   PanelLeft,
   LogOut,
   MoreHorizontal,
+  LayoutDashboard,
+  FileText,
 } from "lucide-react";
-
-
 
 import type { ChatConversationItem } from "@/types/chat";
 import type { UserProfile } from "@/types/auth";
@@ -20,7 +20,7 @@ import { ChatbotConversationList } from "@/components/chatbot/ChatbotConversatio
 import { AdvisorConversationList } from "@/components/chat/AdvisorConversationList";
 
 interface AppSidebarProps {
-  role?: "STUDENT" | "ADVISOR";
+  role?: "STUDENT" | "ADVISOR" | "ADMIN";
   isChatbot?: boolean;
   conversations: ChatConversationItem[];
   selectedPartnerId: string | null;
@@ -74,8 +74,22 @@ export function AppSidebar({
     effectiveRole === "ADMIN"
       ? "Quản trị viên"
       : effectiveRole === "ADVISOR"
-        ? "Tư vấn viên"
+        ? "Cố vấn học tập"
         : "Sinh viên";
+
+  const homeHref =
+    effectiveRole === "ADMIN"
+      ? ROUTES.ADMIN.DASHBOARD
+      : effectiveRole === "ADVISOR"
+        ? ROUTES.ADVISOR.DASHBOARD
+        : ROUTES.PUBLIC.CHATBOT;
+
+  const homeLabel =
+    effectiveRole === "ADMIN"
+      ? "Quản trị hệ thống"
+      : effectiveRole === "ADVISOR"
+        ? "Cổng Cố vấn học tập"
+        : "Trợ lý ảo UTEChatBot";
 
   if (isCollapsed) {
     return (
@@ -83,7 +97,7 @@ export function AppSidebar({
         className={`w-16 min-h-0 border-r border-[#E2E8F0] flex flex-col h-full bg-white py-3 items-center justify-between shrink-0 select-none ${className}`}
       >
         <div className="flex flex-col items-center gap-3 w-full">
-          <Link href={ROUTES.PUBLIC.CHATBOT} aria-label="UTEChatBot">
+          <Link href={homeHref} title={homeLabel} aria-label={homeLabel}>
             <Image src="/assets/images/hcmute-logo.png" alt="Logo HCMUTE" width={36} height={40} className="h-10 w-9 object-contain" />
           </Link>
           <Button
@@ -99,43 +113,239 @@ export function AppSidebar({
           </Button>
         </div>
 
-      <ChatNavigation isCollapsed={isCollapsed} onNavigate={onCollapse} />
+        <ChatNavigation role={effectiveRole} isCollapsed={isCollapsed} onNavigate={onCollapse} />
 
-      {isChatbot ? (
-        <ChatbotConversationList isCollapsed={isCollapsed} onSelect={onCollapse} />
-      ) : (
-      <AdvisorConversationList
-        role={role}
-        conversations={conversations}
-        selectedPartnerId={selectedPartnerId}
-        onSelectConversation={onSelectConversation}
-        onOpenAdvisorDialog={onOpenAdvisorDialog}
-        isLoading={isLoading}
-        error={error}
-        onRetry={onRetry}
-        isCollapsed={isCollapsed}
-      />
+        <div className="w-full flex-1 overflow-y-auto min-h-0">
+          {isChatbot ? (
+            <ChatbotConversationList isCollapsed={isCollapsed} onSelect={onCollapse} />
+          ) : (
+            <AdvisorConversationList
+              role={effectiveRole === "ADVISOR" ? "ADVISOR" : "STUDENT"}
+              conversations={conversations}
+              selectedPartnerId={selectedPartnerId}
+              onSelectConversation={onSelectConversation}
+              onOpenAdvisorDialog={onOpenAdvisorDialog}
+              isLoading={isLoading}
+              error={error}
+              onRetry={onRetry}
+              isCollapsed={isCollapsed}
+            />
+          )}
+        </div>
+
+        {currentUser ? (
+          <div ref={menuRef} className="relative">
+            {profileMenuOpen && (
+              <div className="absolute bottom-full left-3 mb-2 w-56 bg-white border border-[#CBD5E1] rounded-xl shadow-xl py-1.5 z-40 text-[#0F172A]">
+                <div className="px-3.5 py-2 border-b border-[#E2E8F0]">
+                  <p className="text-xs font-semibold text-[#0F172A] truncate">
+                    {displayName}
+                  </p>
+                  <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">
+                    {displayRole}
+                  </span>
+                </div>
+
+                {effectiveRole === "ADVISOR" && (
+                  <div className="py-1 border-b border-[#E2E8F0]">
+                    <Link
+                      href={ROUTES.ADVISOR.DASHBOARD}
+                      onClick={() => setProfileMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3.5 py-2 text-xs text-[#334155] hover:bg-[#F1F5F9] font-medium transition-colors"
+                    >
+                      <LayoutDashboard className="w-4 h-4 text-[#64748B]" />
+                      <span>Bàn làm việc Cố vấn</span>
+                    </Link>
+                    <Link
+                      href={ROUTES.ADVISOR.DOCUMENTS}
+                      onClick={() => setProfileMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3.5 py-2 text-xs text-[#334155] hover:bg-[#F1F5F9] font-medium transition-colors"
+                    >
+                      <FileText className="w-4 h-4 text-[#64748B]" />
+                      <span>Quản lý tài liệu</span>
+                    </Link>
+                  </div>
+                )}
+
+                {effectiveRole === "ADMIN" && (
+                  <div className="py-1 border-b border-[#E2E8F0]">
+                    <Link
+                      href={ROUTES.ADMIN.DASHBOARD}
+                      onClick={() => setProfileMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3.5 py-2 text-xs text-[#334155] hover:bg-[#F1F5F9] font-medium transition-colors"
+                    >
+                      <LayoutDashboard className="w-4 h-4 text-[#64748B]" />
+                      <span>Bảng điều khiển Quản trị</span>
+                    </Link>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    onLogout?.();
+                  }}
+                  className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-[#B91C1C] hover:bg-[#FEF2F2] text-left font-medium transition-colors"
+                >
+                  <LogOut className="w-4 h-4 shrink-0" />
+                  <span>Đăng xuất</span>
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+              title={displayName}
+              className="p-1 rounded-full hover:bg-[#F1F5F9] transition-colors"
+            >
+              <Avatar className="h-9 w-9 ring-1 ring-[#CBD5E1]">
+                <AvatarFallback className="bg-[#1D4ED8] text-white font-semibold text-xs">
+                  {displayName.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </button>
+          </div>
+        ) : (
+          <Link
+            href={ROUTES.AUTH.LOGIN}
+            title="Đăng nhập"
+            className="m-2 rounded-lg bg-[#1D4ED8] px-2 py-2 text-center text-xs text-white"
+          >
+            {isCollapsed ? "Vào" : "Đăng nhập"}
+          </Link>
+        )}
+      </aside>
+    );
+  }
+
+  return (
+    <aside
+      className={`w-full md:w-[280px] min-h-0 border-r border-[#E2E8F0] flex flex-col h-full bg-white shrink-0 ${className}`}
+    >
+      <div className="flex h-16 shrink-0 items-center justify-between border-b border-[#E2E8F0] px-4">
+        <Link href={homeHref} className="flex min-w-0 items-center gap-3 overflow-hidden" aria-label={homeLabel}>
+          <Image
+            src="/assets/images/hcmute-logo.png"
+            alt="Logo HCMUTE"
+            width={36}
+            height={40}
+            className="h-9 w-8 shrink-0 object-contain"
+          />
+          <div className="flex flex-col truncate">
+            <span className="text-sm font-bold tracking-tight text-[#0F172A]">HCMUTE</span>
+            <span className="text-[11px] font-medium text-[#64748B]">
+              {homeLabel}
+            </span>
+          </div>
+        </Link>
+        <div className="flex items-center gap-1">
+          {onCollapse && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onCollapse}
+              aria-label="Thu gọn danh sách"
+              className="h-8 w-8 text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9]"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <ChatNavigation role={effectiveRole} isCollapsed={isCollapsed} onNavigate={onCollapse} />
+
+      {effectiveRole === "ADVISOR" && !isChatbot && (
+        <div className="flex items-center justify-between border-t border-[#F1F5F9] px-3.5 pt-3 pb-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+            Hộp thư sinh viên
+          </span>
+          <span className="rounded-full bg-[#EFF6FF] px-2 py-0.5 text-[10px] font-semibold text-[#1D4ED8]">
+            {conversations.length}
+          </span>
+        </div>
       )}
 
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {isChatbot ? (
+          <ChatbotConversationList isCollapsed={isCollapsed} onSelect={onCollapse} />
+        ) : (
+          <AdvisorConversationList
+            role={effectiveRole === "ADVISOR" ? "ADVISOR" : "STUDENT"}
+            conversations={conversations}
+            selectedPartnerId={selectedPartnerId}
+            onSelectConversation={onSelectConversation}
+            onOpenAdvisorDialog={onOpenAdvisorDialog}
+            isLoading={isLoading}
+            error={error}
+            onRetry={onRetry}
+            isCollapsed={isCollapsed}
+          />
+        )}
+      </div>
+
       {currentUser ? (
-        <div ref={menuRef} className="relative">
+        <div ref={menuRef} className="p-2 border-t border-[#E2E8F0] relative bg-white">
           {profileMenuOpen && (
-            <div className="absolute bottom-full left-3 mb-2 w-56 bg-white border border-[#CBD5E1] rounded-xl shadow-xl py-2 z-40 text-[#0F172A]">
+            <div className="absolute bottom-full left-2 right-2 mb-2 bg-white border border-[#CBD5E1] rounded-xl shadow-xl py-1.5 z-40 text-[#0F172A]">
               <div className="px-3.5 py-2 border-b border-[#E2E8F0]">
                 <p className="text-xs font-semibold text-[#0F172A] truncate">
                   {displayName}
                 </p>
-                <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">
+                {displayEmail && (
+                  <p className="text-[11px] text-[#475569] truncate mt-0.5">
+                    {displayEmail}
+                  </p>
+                )}
+                <span className="inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">
                   {displayRole}
                 </span>
               </div>
+
+              {effectiveRole === "ADVISOR" && (
+                <div className="py-1 border-b border-[#E2E8F0]">
+                  <Link
+                    href={ROUTES.ADVISOR.DASHBOARD}
+                    onClick={() => setProfileMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3.5 py-2 text-xs text-[#334155] hover:bg-[#F1F5F9] font-medium transition-colors"
+                  >
+                    <LayoutDashboard className="w-4 h-4 text-[#64748B]" />
+                    <span>Bàn làm việc Cố vấn</span>
+                  </Link>
+                  <Link
+                    href={ROUTES.ADVISOR.DOCUMENTS}
+                    onClick={() => setProfileMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3.5 py-2 text-xs text-[#334155] hover:bg-[#F1F5F9] font-medium transition-colors"
+                  >
+                    <FileText className="w-4 h-4 text-[#64748B]" />
+                    <span>Quản lý tài liệu</span>
+                  </Link>
+                </div>
+              )}
+
+              {effectiveRole === "ADMIN" && (
+                <div className="py-1 border-b border-[#E2E8F0]">
+                  <Link
+                    href={ROUTES.ADMIN.DASHBOARD}
+                    onClick={() => setProfileMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3.5 py-2 text-xs text-[#334155] hover:bg-[#F1F5F9] font-medium transition-colors"
+                  >
+                    <LayoutDashboard className="w-4 h-4 text-[#64748B]" />
+                    <span>Bảng điều khiển Quản trị</span>
+                  </Link>
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
                   setProfileMenuOpen(false);
                   onLogout?.();
                 }}
-                className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-[#B91C1C] hover:bg-[#FEF2F2] text-left font-medium transition-colors"
+                className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs text-[#B91C1C] hover:bg-[#FEF2F2] transition-colors text-left font-medium"
               >
                 <LogOut className="w-4 h-4 shrink-0" />
                 <span>Đăng xuất</span>
@@ -146,130 +356,26 @@ export function AppSidebar({
           <button
             type="button"
             onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-            title={displayName}
-            className="p-1 rounded-full hover:bg-[#F1F5F9] transition-colors"
+            className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-[#F1F5F9] transition-colors text-left"
           >
-            <Avatar className="h-9 w-9 ring-1 ring-[#CBD5E1]">
-              <AvatarFallback className="bg-[#1D4ED8] text-white font-semibold text-xs">
-                {displayName.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Avatar className="h-8 w-8 ring-1 ring-[#CBD5E1]">
+                <AvatarFallback className="bg-[#1D4ED8] text-white font-semibold text-xs">
+                  {displayName.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-[#0F172A] truncate">
+                  {displayName}
+                </p>
+                <p className="text-[11px] text-[#475569] truncate">
+                  {displayRole}
+                </p>
+              </div>
+            </div>
+            <MoreHorizontal className="w-4 h-4 text-[#64748B] shrink-0 ml-1" />
           </button>
         </div>
-      ) : (
-        <Link
-          href={ROUTES.AUTH.LOGIN}
-          title="Đăng nhập"
-          className="m-2 rounded-lg bg-[#1D4ED8] px-2 py-2 text-center text-xs text-white"
-        >
-          {isCollapsed ? "Vào" : "Đăng nhập"}
-        </Link>
-      )}
-      </aside>
-    );
-  }
-
-  return (
-    <aside
-      className={`w-full md:w-[280px] min-h-0 border-r border-[#E2E8F0] flex flex-col h-full bg-white shrink-0 ${className}`}
-    >
-      <div className="p-3.5 border-b border-[#E2E8F0] flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
-          <Link href={ROUTES.PUBLIC.CHATBOT} className="flex min-w-0 items-center gap-2.5" aria-label="UTEChatBot">
-            <Image src="/assets/images/hcmute-logo.png" alt="Logo HCMUTE" width={36} height={40} className="h-10 w-9 shrink-0 object-contain" />
-            <span className="truncate text-base font-semibold text-[#0F172A] tracking-tight">UTEChatBot</span>
-          </Link>
-          <div className="flex items-center gap-1">
-            {onCollapse && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={onCollapse}
-                aria-label="Thu gọn danh sách"
-                className="h-7 w-7 text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9]"
-              >
-                <PanelLeftClose className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      <ChatNavigation isCollapsed={isCollapsed} onNavigate={onCollapse} />
-
-      {isChatbot ? (
-        <ChatbotConversationList isCollapsed={isCollapsed} onSelect={onCollapse} />
-      ) : (
-      <AdvisorConversationList
-        role={role}
-        conversations={conversations}
-        selectedPartnerId={selectedPartnerId}
-        onSelectConversation={onSelectConversation}
-        onOpenAdvisorDialog={onOpenAdvisorDialog}
-        isLoading={isLoading}
-        error={error}
-        onRetry={onRetry}
-        isCollapsed={isCollapsed}
-      />
-      )}
-
-      {currentUser ? (
-      <div ref={menuRef} className="p-2 border-t border-[#E2E8F0] relative bg-white">
-        {profileMenuOpen && (
-          <div className="absolute bottom-full left-2 right-2 mb-2 bg-white border border-[#CBD5E1] rounded-xl shadow-xl py-1.5 z-40 text-[#0F172A]">
-            <div className="px-3.5 py-2 border-b border-[#E2E8F0]">
-              <p className="text-xs font-semibold text-[#0F172A] truncate">
-                {displayName}
-              </p>
-              {displayEmail && (
-                <p className="text-[11px] text-[#475569] truncate mt-0.5">
-                  {displayEmail}
-                </p>
-              )}
-              <span className="inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">
-                {displayRole}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setProfileMenuOpen(false);
-                onLogout?.();
-              }}
-              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs text-[#B91C1C] hover:bg-[#FEF2F2] transition-colors text-left font-medium"
-            >
-              <LogOut className="w-4 h-4 shrink-0" />
-              <span>Đăng xuất</span>
-            </button>
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-          className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-[#F1F5F9] transition-colors text-left"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Avatar className="h-8 w-8 ring-1 ring-[#CBD5E1]">
-              <AvatarFallback className="bg-[#1D4ED8] text-white font-semibold text-xs">
-                {displayName.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-[#0F172A] truncate">
-                {displayName}
-              </p>
-              <p className="text-[11px] text-[#475569] truncate">
-                {displayRole}
-              </p>
-            </div>
-          </div>
-          <MoreHorizontal className="w-4 h-4 text-[#64748B] shrink-0 ml-1" />
-        </button>
-      </div>
       ) : (
         <Link
           href={ROUTES.AUTH.LOGIN}
