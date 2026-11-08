@@ -1,5 +1,6 @@
 import { apiClient } from "@/lib/api/api-client";
 import type {
+  DocumentResponse,
   DocumentUploadResponse,
   UploadDocumentPayload,
 } from "@/types/document";
@@ -30,7 +31,7 @@ export const documentService = {
   /**
    * Lấy danh sách tài liệu từ cơ sở dữ liệu (GET /api/documents).
    */
-  async getDocuments(): Promise<DocumentUploadResponse[]> {
-    return apiClient.get<DocumentUploadResponse[]>("/documents");
+  async getDocuments(): Promise<DocumentResponse[]> {
+    return apiClient.get<DocumentResponse[]>("/documents");
   },
 };
