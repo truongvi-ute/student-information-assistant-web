@@ -33,19 +33,34 @@ export interface DocumentUploadResponse {
   mimeType: string;
   sizeBytes: number;
   lifecycleStatus: DocumentLifecycleStatus;
+  ragStatus: DocumentRagStatus;
   createdAt: string;
+}
+
+/**
+ * Phản hồi từ API GET /api/documents
+ */
+export interface DocumentResponse {
+  documentId: string;
+  title: string;
+  description: string | null;
+  allowDownload: boolean;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  lifecycleStatus: DocumentLifecycleStatus;
+  ragStatus: DocumentRagStatus;
+  uploadedByEmail?: string | null;
+  uploadedByName?: string | null;
+  archivedAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 /**
  * Bản ghi Tài liệu đào tạo hiển thị trên giao diện 
  */
-export interface DocumentItem extends DocumentUploadResponse {
-  ragStatus?: DocumentRagStatus;
-  uploadedByEmail?: string;
-  uploadedByName?: string;
-  updatedAt?: string;
-  archivedAt?: string | null;
-}
+export interface DocumentItem extends DocumentResponse {}
 
 /**
  * Bản ghi Yêu cầu thay đổi tài liệu RAG 

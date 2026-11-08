@@ -58,19 +58,13 @@ export function AdvisorDocumentsView() {
     try {
       setIsLoading(true);
       const data = await documentService.getDocuments();
-      const mapped: DocumentItem[] = data.map((d) => ({
-        ...d,
-        ragStatus: "NOT_INDEXED",
-        uploadedByName: user?.fullName || "Cố vấn",
-        uploadedByEmail: user?.email,
-      }));
-      setDocuments(mapped);
+      setDocuments(data);
     } catch (err) {
       console.error("Không thể tải danh sách tài liệu:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     void fetchDocuments();
@@ -111,7 +105,6 @@ export function AdvisorDocumentsView() {
   const handleUploadSuccess = (uploaded: DocumentUploadResponse) => {
     const newDoc: DocumentItem = {
       ...uploaded,
-      ragStatus: "NOT_INDEXED",
       uploadedByName: user?.fullName || user?.email || "Cố vấn",
       uploadedByEmail: user?.email,
     };
@@ -566,7 +559,6 @@ export function AdvisorDocumentsView() {
         open={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onUploadSuccess={handleUploadSuccess}
-        role="ADVISOR"
       />
 
       {/* Modal Sửa nháp */}

@@ -12,14 +12,12 @@ interface DocumentUploadModalProps {
   open: boolean;
   onClose: () => void;
   onUploadSuccess: (uploaded: DocumentUploadResponse) => void;
-  role: "ADVISOR" | "ADMIN";
 }
 
 export function DocumentUploadModal({
   open,
   onClose,
   onUploadSuccess,
-  role,
 }: DocumentUploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);

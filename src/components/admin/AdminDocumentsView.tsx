@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, type FormEvent } from "react";
 import {
-  Upload,
   Search,
   FileText,
   Clock,
@@ -13,13 +12,11 @@ import {
   Loader2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { DocumentUploadModal } from "@/components/documents/DocumentUploadModal";
 import { documentService } from "@/services/document.service";
 import type {
   DocumentItem,
   DocumentChangeRequestItem,
   DocumentLifecycleStatus,
-  DocumentUploadResponse,
 } from "@/types/document";
 import { formatFileSize } from "@/validations/document.validation";
 
@@ -37,7 +34,6 @@ export function AdminDocumentsView() {
     "ALL" | DocumentLifecycleStatus
   >("ALL");
 
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
 
   // Chỉnh sửa trực tiếp metadata
@@ -55,19 +51,13 @@ export function AdminDocumentsView() {
     try {
       setIsLoading(true);
       const data = await documentService.getDocuments();
-      const mapped: DocumentItem[] = data.map((d) => ({
-        ...d,
-        ragStatus: "READY",
-        uploadedByName: "Quản trị viên",
-        uploadedByEmail: user?.email,
-      }));
-      setDocuments(mapped);
+      setDocuments(data);
     } catch (err) {
       console.error("Không thể tải danh sách tài liệu:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     void fetchDocuments();
@@ -99,17 +89,6 @@ export function AdminDocumentsView() {
       </div>
     );
   }
-
-  const handleUploadSuccess = (uploaded: DocumentUploadResponse) => {
-    const newDoc: DocumentItem = {
-      ...uploaded,
-      ragStatus: "PROCESSING",
-      uploadedByName: user?.fullName || "Quản trị viên",
-      uploadedByEmail: user?.email,
-    };
-    setDocuments((prev) => [newDoc, ...prev]);
-    setBannerMessage(`Đã tải lên tài liệu "${uploaded.title}".`);
-  };
 
   const openEditModal = (doc: DocumentItem) => {
     setEditingDoc(doc);
@@ -251,17 +230,6 @@ export function AdminDocumentsView() {
               Quản lý tài liệu và xét duyệt các yêu cầu từ Cố vấn học tập.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setBannerMessage(null);
-              setIsUploadModalOpen(true);
-            }}
-            className="inline-flex items-center justify-center gap-1.5 rounded bg-blue-600 px-3.5 py-2 text-xs font-medium text-white shadow-xs transition-colors hover:bg-blue-700"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            <span>Tải lên tài liệu</span>
-          </button>
         </div>
 
         {bannerMessage && (
@@ -561,14 +529,6 @@ export function AdminDocumentsView() {
           </div>
         )}
       </div>
-
-      {/* Modal Upload */}
-      <DocumentUploadModal
-        open={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-        onUploadSuccess={handleUploadSuccess}
-        role="ADMIN"
-      />
 
       {/* Modal Sửa trực tiếp */}
       {editingDoc && (
