@@ -60,24 +60,31 @@ export interface DocumentResponse {
 /**
  * Bản ghi Tài liệu đào tạo hiển thị trên giao diện 
  */
-export interface DocumentItem extends DocumentResponse {}
+export type DocumentItem = DocumentResponse;
 
 /**
- * Bản ghi Yêu cầu thay đổi tài liệu RAG 
+ * Bản ghi Yêu cầu thay đổi tài liệu RAG phản hồi từ Backend
  */
-export interface DocumentChangeRequestItem {
-  requestId: string;
+export interface DocumentRagRequestResponse {
+  id: string;
   documentId: string;
   documentTitle: string;
-  originalFilename: string;
-  requestedByAdvisorName: string;
-  requestedByAdvisorEmail?: string;
+  requestedByName: string;
   requestType: DocumentRequestType;
   status: DocumentRequestStatus;
-  proposedTitle?: string | null;
-  proposedDescription?: string | null;
-  proposedAllowDownload?: boolean | null;
-  rejectionReason?: string | null;
+  rejectionReason: string | null;
   createdAt: string;
-  reviewedAt?: string | null;
+  reviewedAt: string | null;
+}
+
+/**
+ * Alias tương thích ngược cho giao diện
+ */
+export type DocumentChangeRequestItem = DocumentRagRequestResponse;
+
+/**
+ * Payload gửi lên API POST /api/document-requests/{requestId}/reject
+ */
+export interface RejectDocumentRagRequestPayload {
+  reason: string;
 }
