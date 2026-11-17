@@ -8,7 +8,7 @@ import { ROUTES } from "@/routes";
 import { ChatbotComposer } from "./ChatbotComposer";
 import { DocumentHighlightViewerModal } from "./DocumentHighlightViewerModal";
 import { MarkdownMessage } from "./MarkdownMessage";
-import { ReferencePanel } from "./ReferencePanel";
+import { groupCitationsByDocument, ReferencePanel } from "./ReferencePanel";
 import { useChatbot } from "@/contexts/ChatbotContext";
 import type { AiCitationResponse } from "@/types/chatbot";
 
@@ -100,7 +100,7 @@ export function ChatbotContainer() {
             <FileText className="h-4 w-4" />
             {activeCitations.length > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#2563EB] px-1 text-[10px] font-semibold text-white">
-                {activeCitations.length}
+                {groupCitationsByDocument(activeCitations).length}
               </span>
             )}
           </Button>
@@ -221,7 +221,9 @@ export function ChatbotContainer() {
                               className="inline-flex items-center gap-1.5 rounded-lg bg-[#EFF6FF] px-2.5 py-1 text-xs font-medium text-[#1D4ED8] hover:bg-[#DBEAFE]"
                             >
                               <BookOpen className="h-3.5 w-3.5" />
-                              <span>Nguồn tham khảo ({message.citations.length})</span>
+                              <span>
+                                Nguồn tham khảo ({groupCitationsByDocument(message.citations).length})
+                              </span>
                             </button>
                           </div>
                         )}
