@@ -120,7 +120,7 @@ function extractFilenameFromContentDisposition(header: string | null): string | 
 
 async function requestBlob(
   endpoint: string,
-  options: RequestOptions = {},
+  options: Omit<RequestInit, "body" | "method"> = {},
 ): Promise<BlobDownloadResult> {
   const token = authStorage.getToken();
   const headers: Record<string, string> = {
@@ -191,7 +191,7 @@ export const apiClient = {
 
   getBlob(
     endpoint: string,
-    options?: RequestOptions,
+    options?: Omit<RequestInit, "body" | "method">,
   ) {
     return requestBlob(endpoint, options);
   },

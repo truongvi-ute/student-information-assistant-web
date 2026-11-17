@@ -6,9 +6,11 @@ import { Bot, BookOpen, FileText, Loader2, PanelLeft, X } from "lucide-react";
 import { useChatLayout } from "@/layouts/ChatLayout";
 import { ROUTES } from "@/routes";
 import { ChatbotComposer } from "./ChatbotComposer";
+import { DocumentHighlightViewerModal } from "./DocumentHighlightViewerModal";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { ReferencePanel } from "./ReferencePanel";
 import { useChatbot } from "@/contexts/ChatbotContext";
+import type { AiCitationResponse } from "@/types/chatbot";
 
 const suggestedQuestions = [
   "Điều kiện xét tốt nghiệp gồm những gì?",
@@ -39,6 +41,12 @@ export function ChatbotContainer() {
   const messages = activeConversation?.messages;
   const messageCount = messages?.length || 0;
   const [isReferenceOpen, setIsReferenceOpen] = useState(false);
+  const [previewDocument, setPreviewDocument] = useState<{
+    documentId: string;
+    sourceTitle: string;
+    hitChunks: AiCitationResponse[];
+    focusedChunk?: AiCitationResponse | null;
+  } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const previousView = useRef<{ id: string | undefined; count: number; sending: boolean } | null>(null);
 
@@ -264,8 +272,31 @@ export function ChatbotContainer() {
 
       {isReferenceOpen && (
         <div className="absolute inset-0 z-10 bg-white lg:static lg:w-72 lg:shrink-0">
-          <ReferencePanel citations={activeCitations} onClose={() => setIsReferenceOpen(false)} />
+          <ReferencePanel
+            citations={activeCitations}
+            onClose={() => setIsReferenceOpen(false)}
+            onOpenDocument={(group, focusedChunk) => {
+              if (!group.documentId) return;
+              setPreviewDocument({
+                documentId: group.documentId,
+                sourceTitle: group.sourceTitle,
+                hitChunks: group.chunks,
+                focusedChunk: focusedChunk ?? null,
+              });
+            }}
+          />
         </div>
+      )}
+
+      {previewDocument && (
+        <DocumentHighlightViewerModal
+          key={`${previewDocument.documentId}-${previewDocument.focusedChunk?.chunkReference ?? "all"}`}
+          documentId={previewDocument.documentId}
+          sourceTitle={previewDocument.sourceTitle}
+          hitChunks={previewDocument.hitChunks}
+          focusedChunk={previewDocument.focusedChunk}
+          onClose={() => setPreviewDocument(null)}
+        />
       )}
     </div>
   );
