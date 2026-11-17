@@ -96,6 +96,7 @@ async function request<T>(
 export interface BlobDownloadResult {
   blob: Blob;
   filename: string | null;
+  allowDownload?: boolean;
 }
 
 function extractFilenameFromContentDisposition(header: string | null): string | null {
@@ -174,7 +175,12 @@ async function requestBlob(
   const filename = extractFilenameFromContentDisposition(
     response.headers.get("content-disposition")
   );
-  return { blob, filename };
+  const allowDownloadHeader = response.headers.get("x-allow-download");
+  const allowDownload =
+    allowDownloadHeader === null
+      ? undefined
+      : allowDownloadHeader.toLowerCase() === "true";
+  return { blob, filename, allowDownload };
 }
 
 export const apiClient = {

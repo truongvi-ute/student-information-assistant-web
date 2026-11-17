@@ -12,6 +12,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Download, FileText, Loader2, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PdfHighlightViewer } from "@/components/chatbot/PdfHighlightViewer";
 import { documentService } from "@/services/document.service";
 import type { AiCitationResponse } from "@/types/chatbot";
 import type { DocumentContentResponse } from "@/types/document";
@@ -37,6 +38,12 @@ interface MarkdownBlock {
   isHit: boolean;
   isFocused: boolean;
   highlightFragments: string[];
+}
+
+interface PdfPreviewData {
+  bytes: Uint8Array;
+  filename: string;
+  allowDownload: boolean;
 }
 
 function mergeHitIntervals(chunks: AiCitationResponse[]): OffsetInterval[] {
@@ -254,7 +261,7 @@ function highlightReactChildren(children: ReactNode, terms: string[]): ReactNode
   });
 }
 
-function createMarkdownComponents(highlightTerms: string[]): Components {
+function createMarkdownComponents(highlightTerms: string[], isHitBlock: boolean): Components {
   const wrap = (children: ReactNode) => highlightReactChildren(children, highlightTerms);
 
   return {
@@ -291,12 +298,20 @@ function createMarkdownComponents(highlightTerms: string[]): Components {
     ),
     li: ({ children }) => <li className="leading-relaxed">{wrap(children)}</li>,
     table: ({ children }) => (
-      <div className="my-2 overflow-x-auto rounded-lg border border-[#E2E8F0] bg-white">
+      <div
+        className={`my-2 overflow-x-auto rounded-lg border ${
+          isHitBlock
+            ? "border-[#F59E0B]/40 bg-[#FEF3C7]/35"
+            : "border-[#E2E8F0] bg-white"
+        }`}
+      >
         <table className="w-full border-collapse text-left text-xs">{children}</table>
       </div>
     ),
     thead: ({ children }) => (
-      <thead className="bg-[#F8FAFC] text-[#0F172A]">{children}</thead>
+      <thead className={isHitBlock ? "bg-[#FEF3C7]/60 text-[#0F172A]" : "bg-[#F8FAFC] text-[#0F172A]"}>
+        {children}
+      </thead>
     ),
     th: ({ children }) => (
       <th className="border-b border-[#E2E8F0] px-3 py-2 font-semibold">
@@ -325,12 +340,12 @@ function createMarkdownComponents(highlightTerms: string[]): Components {
 function HighlightMarkdownBlock({ block }: { block: MarkdownBlock }) {
   const components = useMemo(() => {
     if (!block.isHit) {
-      return createMarkdownComponents([]);
+      return createMarkdownComponents([], false);
     }
     const terms = Array.from(
       new Set(block.highlightFragments.flatMap((frag) => extractInlineTerms(frag)))
     );
-    return createMarkdownComponents(terms);
+    return createMarkdownComponents(terms, true);
   }, [block.isHit, block.highlightFragments]);
 
   return (
@@ -349,7 +364,11 @@ export function DocumentHighlightViewerModal({
   focusedChunk,
   onClose,
 }: DocumentHighlightViewerModalProps) {
+  const isPdf = sourceTitle.trim().toLowerCase().endsWith(".pdf");
+
   const [docContent, setDocContent] = useState<DocumentContentResponse | null>(null);
+  const [pdfData, setPdfData] = useState<PdfPreviewData | null>(null);
+  const [matchedPdfPages, setMatchedPdfPages] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -358,33 +377,64 @@ export function DocumentHighlightViewerModal({
 
   useEffect(() => {
     let active = true;
-    documentService
-      .getDocumentContent(documentId)
-      .then((res) => {
-        if (active) {
-          setDocContent(res);
-          setError(null);
-        }
-      })
-      .catch((err: unknown) => {
-        if (active) {
-          const message =
-            err instanceof Error
-              ? err.message
-              : "Không thể tải nội dung tài liệu từ máy chủ.";
-          setError(message);
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setIsLoading(false);
-        }
-      });
+
+    if (isPdf) {
+      documentService
+        .previewDocument(documentId)
+        .then(async (res) => {
+          const buffer = await res.blob.arrayBuffer();
+          if (active) {
+            setPdfData({
+              bytes: new Uint8Array(buffer),
+              filename: res.filename || sourceTitle,
+              allowDownload: res.allowDownload ?? true,
+            });
+            setError(null);
+          }
+        })
+        .catch((err: unknown) => {
+          if (active) {
+            const message =
+              err instanceof Error
+                ? err.message
+                : "Không thể tải file PDF gốc từ máy chủ.";
+            setError(message);
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setIsLoading(false);
+          }
+        });
+    } else {
+      documentService
+        .getDocumentContent(documentId)
+        .then((res) => {
+          if (active) {
+            setDocContent(res);
+            setError(null);
+          }
+        })
+        .catch((err: unknown) => {
+          if (active) {
+            const message =
+              err instanceof Error
+                ? err.message
+                : "Không thể tải nội dung tài liệu từ máy chủ.";
+            setError(message);
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setIsLoading(false);
+          }
+        });
+    }
 
     return () => {
       active = false;
     };
-  }, [documentId]);
+  }, [documentId, isPdf, sourceTitle]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -397,9 +447,9 @@ export function DocumentHighlightViewerModal({
   }, [onClose]);
 
   const blocks = useMemo(() => {
-    if (!docContent?.markdownContent) return [];
+    if (isPdf || !docContent?.markdownContent) return [];
     return buildHighlightedBlocks(docContent.markdownContent, hitChunks, focusedChunk);
-  }, [docContent?.markdownContent, hitChunks, focusedChunk]);
+  }, [isPdf, docContent?.markdownContent, hitChunks, focusedChunk]);
 
   const targetBlockIndex = useMemo(() => {
     const focusedIdx = blocks.findIndex((b) => b.isFocused);
@@ -413,13 +463,17 @@ export function DocumentHighlightViewerModal({
   );
 
   useEffect(() => {
-    if (!isLoading && targetBlockIndex !== -1 && targetHitRef.current) {
+    if (!isPdf && !isLoading && targetBlockIndex !== -1 && targetHitRef.current) {
       targetHitRef.current.scrollIntoView({
         behavior: "smooth",
-        block: "center",
+        block: "start",
       });
     }
-  }, [isLoading, targetBlockIndex]);
+  }, [isPdf, isLoading, targetBlockIndex]);
+
+  const allowDownload = isPdf
+    ? Boolean(pdfData?.allowDownload)
+    : Boolean(docContent?.allowDownload);
 
   const handleDownloadOriginal = async () => {
     setIsDownloading(true);
@@ -429,7 +483,11 @@ export function DocumentHighlightViewerModal({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = filename || docContent?.originalFilename || sourceTitle;
+      link.download =
+        filename ||
+        pdfData?.filename ||
+        docContent?.originalFilename ||
+        sourceTitle;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -452,7 +510,7 @@ export function DocumentHighlightViewerModal({
       aria-label={`Xem tài liệu ${sourceTitle}`}
     >
       <div
-        className="flex h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-xl"
+        className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E2E8F0] bg-[#F8FAFC] px-5 py-3.5">
@@ -460,16 +518,20 @@ export function DocumentHighlightViewerModal({
             <FileText className="mt-0.5 h-5 w-5 shrink-0 text-[#2563EB]" />
             <div className="min-w-0">
               <h3 className="truncate text-sm font-semibold text-[#0F172A]">
-                {docContent?.title || sourceTitle}
+                {docContent?.title || pdfData?.filename || sourceTitle}
               </h3>
               <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-[#64748B]">
-                <span>{docContent?.originalFilename || sourceTitle}</span>
+                <span>{docContent?.originalFilename || pdfData?.filename || sourceTitle}</span>
                 {!isLoading && !error && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[11px] font-medium text-[#92400E]">
                     <Sparkles className="h-3 w-3" />
-                    {hitCount > 0
-                      ? `${hitCount} đoạn được đánh dấu`
-                      : `${hitChunks.length} đoạn trích`}
+                    {isPdf
+                      ? matchedPdfPages.length > 0
+                        ? `Đánh dấu trên ${matchedPdfPages.length} trang PDF gốc`
+                        : `${hitChunks.length} đoạn trích từ PDF`
+                      : hitCount > 0
+                        ? `${hitCount} đoạn được đánh dấu`
+                        : `${hitChunks.length} đoạn trích`}
                   </span>
                 )}
               </div>
@@ -477,7 +539,7 @@ export function DocumentHighlightViewerModal({
           </div>
 
           <div className="flex items-center gap-2">
-            {docContent?.allowDownload && (
+            {allowDownload && (
               <Button
                 type="button"
                 variant="outline"
@@ -513,49 +575,66 @@ export function DocumentHighlightViewerModal({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-hidden">
           {isLoading ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-[#64748B]">
               <Loader2 className="h-5 w-5 animate-spin text-[#2563EB]" />
-              <span>Đang tải nội dung tài liệu...</span>
+              <span>
+                {isPdf
+                  ? "Đang tải file PDF gốc..."
+                  : "Đang tải nội dung tài liệu..."}
+              </span>
             </div>
           ) : error ? (
-            <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-4 text-sm text-[#B91C1C]">
-              {error}
+            <div className="p-6">
+              <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-4 text-sm text-[#B91C1C]">
+                {error}
+              </div>
             </div>
-          ) : blocks.length === 0 ? (
-            <div className="rounded-xl border border-[#E2E8F0] p-6 text-center text-sm text-[#64748B]">
-              Tài liệu chưa có nội dung xem trước.
-            </div>
+          ) : isPdf && pdfData ? (
+            <PdfHighlightViewer
+              pdfBytes={pdfData.bytes}
+              hitChunks={hitChunks}
+              focusedChunk={focusedChunk}
+              onMatchedPagesChange={setMatchedPdfPages}
+            />
           ) : (
-            <div className="mx-auto max-w-3xl space-y-4">
-              {blocks.map((block) => {
-                const isTarget = block.index === targetBlockIndex;
-                return (
-                  <div
-                    key={block.index}
-                    ref={isTarget ? targetHitRef : undefined}
-                    className={
-                      block.isHit
-                        ? `rounded-xl border-l-4 px-4 py-3 transition-colors ${
-                            block.isFocused
-                              ? "border-[#D97706] bg-[#FEF3C7]/75 ring-1 ring-[#F59E0B]/40"
-                              : "border-[#F59E0B] bg-[#FEF3C7]/45"
-                          }`
-                        : ""
-                    }
-                  >
-                    {block.isHit && (
-                      <div className="mb-1.5 flex items-center gap-1.5">
-                        <mark className="rounded bg-[#FDE68A] px-1.5 py-0.5 text-[10px] font-semibold text-[#92400E]">
-                          {block.isFocused ? "Đoạn trích đang chọn" : "Đoạn trích khớp"}
-                        </mark>
+            <div className="h-full overflow-y-auto px-6 py-5">
+              {blocks.length === 0 ? (
+                <div className="rounded-xl border border-[#E2E8F0] p-6 text-center text-sm text-[#64748B]">
+                  Tài liệu chưa có nội dung xem trước.
+                </div>
+              ) : (
+                <div className="mx-auto max-w-3xl space-y-4">
+                  {blocks.map((block) => {
+                    const isTarget = block.index === targetBlockIndex;
+                    return (
+                      <div
+                        key={block.index}
+                        ref={isTarget ? targetHitRef : undefined}
+                        className={
+                          block.isHit
+                            ? `rounded-xl border-l-4 px-4 py-3 transition-colors ${
+                                block.isFocused
+                                  ? "border-[#D97706] bg-[#FEF3C7]/75 ring-1 ring-[#F59E0B]/40"
+                                  : "border-[#F59E0B] bg-[#FEF3C7]/45"
+                              }`
+                            : ""
+                        }
+                      >
+                        {block.isHit && (
+                          <div className="mb-1.5 flex items-center gap-1.5">
+                            <mark className="rounded bg-[#FDE68A] px-1.5 py-0.5 text-[10px] font-semibold text-[#92400E]">
+                              {block.isFocused ? "Đoạn trích đang chọn" : "Đoạn trích khớp"}
+                            </mark>
+                          </div>
+                        )}
+                        <HighlightMarkdownBlock block={block} />
                       </div>
-                    )}
-                    <HighlightMarkdownBlock block={block} />
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

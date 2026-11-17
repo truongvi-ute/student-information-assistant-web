@@ -90,6 +90,15 @@ export const documentService = {
   },
 
   /**
+   * Xem trước file gốc của tài liệu (inline) từ RustFS (GET /api/documents/{documentId}/preview).
+   */
+  async previewDocument(documentId: string): Promise<BlobDownloadResult> {
+    return apiClient.getBlob(
+      `/documents/${encodeURIComponent(documentId)}/preview`
+    );
+  },
+
+  /**
    * Tải file gốc của tài liệu từ RustFS (GET /api/documents/{documentId}/download).
    */
   async downloadDocument(documentId: string): Promise<BlobDownloadResult> {
