@@ -88,3 +88,15 @@ export type DocumentChangeRequestItem = DocumentRagRequestResponse;
 export interface RejectDocumentRagRequestPayload {
   reason: string;
 }
+
+/**
+ * Phản hồi từ API GET /api/documents/{documentId}/content
+ */
+export interface DocumentContentResponse {
+  documentId: string;
+  title: string;
+  originalFilename: string;
+  mimeType: string;
+  allowDownload: boolean;
+  markdownContent: string;
+}

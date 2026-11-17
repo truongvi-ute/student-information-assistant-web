@@ -93,6 +93,90 @@ async function request<T>(
 
 }
 
+export interface BlobDownloadResult {
+  blob: Blob;
+  filename: string | null;
+}
+
+function extractFilenameFromContentDisposition(header: string | null): string | null {
+  if (!header) return null;
+
+  const utf8Match = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim().replace(/^"|"$/g, ""));
+    } catch {
+      return utf8Match[1].trim().replace(/^"|"$/g, "");
+    }
+  }
+
+  const asciiMatch = /filename\s*=\s*"?([^";]+)"?/i.exec(header);
+  if (asciiMatch?.[1]) {
+    return asciiMatch[1].trim();
+  }
+
+  return null;
+}
+
+async function requestBlob(
+  endpoint: string,
+  options: RequestOptions = {},
+): Promise<BlobDownloadResult> {
+  const token = authStorage.getToken();
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token && !headers["Authorization"]) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+  } catch (netErr: unknown) {
+    const errorDetails = netErr instanceof Error ? netErr.message : String(netErr);
+    throw new ApiClientError(
+      0,
+      "Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại dịch vụ backend (http://localhost:8080).",
+      { code: "NETWORK_ERROR", details: errorDetails }
+    );
+  }
+
+  if (!response.ok) {
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      try {
+        const errBody = (await response.json()) as ApiErrorResponse;
+        throw new ApiClientError(
+          response.status,
+          errBody?.message || `Lỗi máy chủ (${response.status})`,
+          errBody?.error
+        );
+      } catch (err) {
+        if (err instanceof ApiClientError) throw err;
+      }
+    }
+    const text = await response.text().catch(() => "");
+    throw new ApiClientError(
+      response.status,
+      text || `Tải tài liệu thất bại với mã lỗi ${response.status}`,
+      { code: "HTTP_ERROR" }
+    );
+  }
+
+  const blob = await response.blob();
+  const filename = extractFilenameFromContentDisposition(
+    response.headers.get("content-disposition")
+  );
+  return { blob, filename };
+}
+
 export const apiClient = {
   // Get
   get<T>(
@@ -103,6 +187,13 @@ export const apiClient = {
       ...options,
       method: "GET",
     });
+  },
+
+  getBlob(
+    endpoint: string,
+    options?: RequestOptions,
+  ) {
+    return requestBlob(endpoint, options);
   },
 
   // Post

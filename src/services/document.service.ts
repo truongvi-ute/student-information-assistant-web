@@ -1,5 +1,6 @@
-import { apiClient } from "@/lib/api/api-client";
+import { apiClient, type BlobDownloadResult } from "@/lib/api/api-client";
 import type {
+  DocumentContentResponse,
   DocumentRagRequestResponse,
   DocumentResponse,
   DocumentUploadResponse,
@@ -75,5 +76,25 @@ export const documentService = {
     return apiClient.post<void>(`/document-requests/${requestId}/reject`, {
       reason,
     } as RejectDocumentRagRequestPayload);
+  },
+
+  /**
+   * Lấy nội dung Markdown chuẩn hóa của tài liệu để xem trước và tô sáng (GET /api/documents/{documentId}/content).
+   */
+  async getDocumentContent(
+    documentId: string
+  ): Promise<DocumentContentResponse> {
+    return apiClient.get<DocumentContentResponse>(
+      `/documents/${encodeURIComponent(documentId)}/content`
+    );
+  },
+
+  /**
+   * Tải file gốc của tài liệu từ RustFS (GET /api/documents/{documentId}/download).
+   */
+  async downloadDocument(documentId: string): Promise<BlobDownloadResult> {
+    return apiClient.getBlob(
+      `/documents/${encodeURIComponent(documentId)}/download`
+    );
   },
 };
