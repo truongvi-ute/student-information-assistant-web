@@ -20,6 +20,7 @@ import type { DocumentContentResponse } from "@/types/document";
 interface DocumentHighlightViewerModalProps {
   documentId: string;
   sourceTitle: string;
+  originalFilename?: string | null;
   hitChunks: AiCitationResponse[];
   focusedChunk?: AiCitationResponse | null;
   onClose: () => void;
@@ -360,11 +361,13 @@ function HighlightMarkdownBlock({ block }: { block: MarkdownBlock }) {
 export function DocumentHighlightViewerModal({
   documentId,
   sourceTitle,
+  originalFilename,
   hitChunks,
   focusedChunk,
   onClose,
 }: DocumentHighlightViewerModalProps) {
-  const isPdf = sourceTitle.trim().toLowerCase().endsWith(".pdf");
+  const filenameForDetection = originalFilename || sourceTitle;
+  const isPdf = filenameForDetection.trim().toLowerCase().endsWith(".pdf");
 
   const [docContent, setDocContent] = useState<DocumentContentResponse | null>(null);
   const [pdfData, setPdfData] = useState<PdfPreviewData | null>(null);
@@ -518,10 +521,12 @@ export function DocumentHighlightViewerModal({
             <FileText className="mt-0.5 h-5 w-5 shrink-0 text-[#2563EB]" />
             <div className="min-w-0">
               <h3 className="truncate text-sm font-semibold text-[#0F172A]">
-                {docContent?.title || pdfData?.filename || sourceTitle}
+                {docContent?.title || sourceTitle}
               </h3>
               <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-[#64748B]">
-                <span>{docContent?.originalFilename || pdfData?.filename || sourceTitle}</span>
+                <span>
+                  {docContent?.originalFilename || pdfData?.filename || originalFilename || sourceTitle}
+                </span>
                 {!isLoading && !error && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[11px] font-medium text-[#92400E]">
                     <Sparkles className="h-3 w-3" />

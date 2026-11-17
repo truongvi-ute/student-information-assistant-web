@@ -44,6 +44,7 @@ export function ChatbotContainer() {
   const [previewDocument, setPreviewDocument] = useState<{
     documentId: string;
     sourceTitle: string;
+    originalFilename?: string | null;
     hitChunks: AiCitationResponse[];
     focusedChunk?: AiCitationResponse | null;
   } | null>(null);
@@ -282,6 +283,7 @@ export function ChatbotContainer() {
               setPreviewDocument({
                 documentId: group.documentId,
                 sourceTitle: group.sourceTitle,
+                originalFilename: group.originalFilename,
                 hitChunks: group.chunks,
                 focusedChunk: focusedChunk ?? null,
               });
@@ -295,6 +297,7 @@ export function ChatbotContainer() {
           key={`${previewDocument.documentId}-${previewDocument.focusedChunk?.chunkReference ?? "all"}`}
           documentId={previewDocument.documentId}
           sourceTitle={previewDocument.sourceTitle}
+          originalFilename={previewDocument.originalFilename}
           hitChunks={previewDocument.hitChunks}
           focusedChunk={previewDocument.focusedChunk}
           onClose={() => setPreviewDocument(null)}

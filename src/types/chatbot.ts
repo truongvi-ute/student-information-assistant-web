@@ -9,6 +9,7 @@ export interface AiCitationResponse {
   relevanceScore: number | null;
   charStart?: number | null;
   charEnd?: number | null;
+  originalFilename?: string | null;
 }
 
 export interface AiMessageResponse {

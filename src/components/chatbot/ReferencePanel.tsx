@@ -7,6 +7,7 @@ export interface GroupedCitationDocument {
   key: string;
   documentId: string | null;
   sourceTitle: string;
+  originalFilename: string | null;
   maxScore: number | null;
   chunks: AiCitationResponse[];
 }
@@ -36,12 +37,16 @@ export function groupCitationsByDocument(
         key,
         documentId: citation.documentId,
         sourceTitle: citation.sourceTitle,
+        originalFilename: citation.originalFilename ?? null,
         maxScore: citation.relevanceScore,
         chunks: [citation],
       });
       continue;
     }
 
+    if (!existing.originalFilename && citation.originalFilename) {
+      existing.originalFilename = citation.originalFilename;
+    }
     existing.chunks.push(citation);
     if (citation.relevanceScore != null) {
       existing.maxScore =
