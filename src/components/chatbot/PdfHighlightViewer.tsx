@@ -23,12 +23,15 @@ interface SpanMatchRange {
 
 function cleanMarkdownForPdfSearch(raw: string): string {
   return raw
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<\/?[^>]+>/g, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/^#{1,6}\s+/gm, "")
     .replace(/^\s*[-*+]\s+/gm, "")
     .replace(/[*_`~]/g, "")
     .replace(/\|/g, " ")
+    .replace(/\s*\/\s*/g, "/")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -132,6 +135,15 @@ function highlightPdfTextLayer(
           prevWasSpace = true;
         }
       } else {
+        // Bỏ qua khoảng trắng sau dấu chấm/gạch chéo để khớp giữa "I. 3" (PDF) và "I.3" (Markdown)
+        const isSpaceAfterPunct =
+          prevWasSpace &&
+          normText.length >= 2 &&
+          /[./]/.test(normText[normText.length - 2]);
+        if (isSpaceAfterPunct && !/\s/.test(ch)) {
+          normText = normText.slice(0, -1);
+          charMap.pop();
+        }
         normText += ch.toLowerCase();
         charMap.push({ spanIdx, charIdx });
         prevWasSpace = false;
@@ -165,15 +177,16 @@ function highlightPdfTextLayer(
   };
 
   for (const phraseObj of phrases) {
-    let hits = findPhraseOccurrences(normText, phraseObj.normalized);
+    const normalizedPhrase = phraseObj.normalized.replace(/([./])\s+/g, "$1");
+    let hits = findPhraseOccurrences(normText, normalizedPhrase);
 
-    // Fallback: nếu dòng trong PDF bị ngắt/khác dấu câu so với chunk Markdown, thử các cụm 6 từ
-    if (hits.length === 0 && phraseObj.normalized.length >= 30) {
-      const words = phraseObj.normalized.split(" ").filter(Boolean);
-      if (words.length >= 7) {
-        for (let i = 0; i <= words.length - 6; i += 4) {
-          const sub = words.slice(i, i + 6).join(" ");
-          if (sub.length >= 16) {
+    // Fallback: nếu dòng trong PDF bị ngắt/lệch một phần, trượt từng cụm 4 từ liên tiếp để giữ đủ đầu/cuối dòng
+    if (hits.length === 0 && normalizedPhrase.length >= 20) {
+      const words = normalizedPhrase.split(" ").filter(Boolean);
+      if (words.length >= 4) {
+        for (let i = 0; i <= words.length - 4; i += 2) {
+          const sub = words.slice(i, i + 4).join(" ");
+          if (sub.length >= 12) {
             hits = hits.concat(findPhraseOccurrences(normText, sub));
           }
         }

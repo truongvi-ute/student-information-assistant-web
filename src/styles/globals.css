@@ -192,6 +192,7 @@ nextjs-dev-overlay,
   inset: 0;
   overflow: clip;
   opacity: 1;
+  mix-blend-mode: multiply;
   line-height: 1;
   letter-spacing: normal;
   word-spacing: normal;
@@ -239,13 +240,11 @@ nextjs-dev-overlay,
 }
 
 .sia-pdf-mark {
-  background-color: rgba(250, 204, 21, 0.45);
+  background-color: rgba(253, 224, 71, 0.55);
   color: transparent;
-  border-radius: 2px;
-  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35);
+  padding-block: 1px;
 }
 
 .sia-pdf-mark-focused {
-  background-color: rgba(251, 146, 60, 0.45);
-  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.6);
+  background-color: rgba(251, 191, 36, 0.65);
 }
