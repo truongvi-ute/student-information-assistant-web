@@ -6,9 +6,11 @@ import { Bot, BookOpen, FileText, Loader2, PanelLeft, X } from "lucide-react";
 import { useChatLayout } from "@/layouts/ChatLayout";
 import { ROUTES } from "@/routes";
 import { ChatbotComposer } from "./ChatbotComposer";
+import { DocumentHighlightViewerModal } from "./DocumentHighlightViewerModal";
 import { MarkdownMessage } from "./MarkdownMessage";
-import { ReferencePanel } from "./ReferencePanel";
+import { groupCitationsByDocument, ReferencePanel } from "./ReferencePanel";
 import { useChatbot } from "@/contexts/ChatbotContext";
+import type { AiCitationResponse } from "@/types/chatbot";
 
 const suggestedQuestions = [
   "Điều kiện xét tốt nghiệp gồm những gì?",
@@ -39,6 +41,13 @@ export function ChatbotContainer() {
   const messages = activeConversation?.messages;
   const messageCount = messages?.length || 0;
   const [isReferenceOpen, setIsReferenceOpen] = useState(false);
+  const [previewDocument, setPreviewDocument] = useState<{
+    documentId: string;
+    sourceTitle: string;
+    originalFilename?: string | null;
+    hitChunks: AiCitationResponse[];
+    focusedChunk?: AiCitationResponse | null;
+  } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const previousView = useRef<{ id: string | undefined; count: number; sending: boolean } | null>(null);
 
@@ -92,7 +101,7 @@ export function ChatbotContainer() {
             <FileText className="h-4 w-4" />
             {activeCitations.length > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#2563EB] px-1 text-[10px] font-semibold text-white">
-                {activeCitations.length}
+                {groupCitationsByDocument(activeCitations).length}
               </span>
             )}
           </Button>
@@ -213,7 +222,9 @@ export function ChatbotContainer() {
                               className="inline-flex items-center gap-1.5 rounded-lg bg-[#EFF6FF] px-2.5 py-1 text-xs font-medium text-[#1D4ED8] hover:bg-[#DBEAFE]"
                             >
                               <BookOpen className="h-3.5 w-3.5" />
-                              <span>Nguồn tham khảo ({message.citations.length})</span>
+                              <span>
+                                Nguồn tham khảo ({groupCitationsByDocument(message.citations).length})
+                              </span>
                             </button>
                           </div>
                         )}
@@ -264,8 +275,33 @@ export function ChatbotContainer() {
 
       {isReferenceOpen && (
         <div className="absolute inset-0 z-10 bg-white lg:static lg:w-72 lg:shrink-0">
-          <ReferencePanel citations={activeCitations} onClose={() => setIsReferenceOpen(false)} />
+          <ReferencePanel
+            citations={activeCitations}
+            onClose={() => setIsReferenceOpen(false)}
+            onOpenDocument={(group, focusedChunk) => {
+              if (!group.documentId) return;
+              setPreviewDocument({
+                documentId: group.documentId,
+                sourceTitle: group.sourceTitle,
+                originalFilename: group.originalFilename,
+                hitChunks: group.chunks,
+                focusedChunk: focusedChunk ?? null,
+              });
+            }}
+          />
         </div>
+      )}
+
+      {previewDocument && (
+        <DocumentHighlightViewerModal
+          key={`${previewDocument.documentId}-${previewDocument.focusedChunk?.chunkReference ?? "all"}`}
+          documentId={previewDocument.documentId}
+          sourceTitle={previewDocument.sourceTitle}
+          originalFilename={previewDocument.originalFilename}
+          hitChunks={previewDocument.hitChunks}
+          focusedChunk={previewDocument.focusedChunk}
+          onClose={() => setPreviewDocument(null)}
+        />
       )}
     </div>
   );

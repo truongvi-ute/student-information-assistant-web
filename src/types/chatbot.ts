@@ -7,6 +7,9 @@ export interface AiCitationResponse {
   chunkReference: string | null;
   quotedContent: string;
   relevanceScore: number | null;
+  charStart?: number | null;
+  charEnd?: number | null;
+  originalFilename?: string | null;
 }
 
 export interface AiMessageResponse {
