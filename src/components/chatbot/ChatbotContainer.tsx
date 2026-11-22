@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Bot, BookOpen, FileText, Loader2, PanelLeft, X } from "lucide-react";
-import { useChatLayout } from "@/layouts/ChatLayout";
+import { useAppLayout } from "@/layouts/AppLayout";
 import { ROUTES } from "@/routes";
 import { ChatbotComposer } from "./ChatbotComposer";
 import { DocumentHighlightViewerModal } from "./DocumentHighlightViewerModal";
@@ -19,7 +19,7 @@ const suggestedQuestions = [
 ];
 
 export function ChatbotContainer() {
-  const { isSidebarOpen, openSidebar } = useChatLayout();
+  const { isSidebarOpen, openSidebar } = useAppLayout();
   const {
     activeConversation,
     canUseChatbot,

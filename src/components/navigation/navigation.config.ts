@@ -5,6 +5,7 @@ import {
   BookOpen,
   FileText,
   MessageSquare,
+  Bot,
 } from "lucide-react";
 import { ROUTES } from "@/routes";
 
@@ -13,11 +14,16 @@ export interface NavItem {
   href: string;
   icon: ComponentType<{ className?: string }>;
   badge?: string;
-  roles: ("ADMIN" | "ADVISOR")[];
+  roles: ("ADMIN" | "ADVISOR" | "STUDENT" | "GUEST")[];
 }
 
-export const DASHBOARD_NAV_ITEMS: NavItem[] = [
-  // --- Phân hệ ADMIN (UC10, UC11, UC12) ---
+export const APP_NAV_ITEMS: NavItem[] = [
+  {
+    title: "Hội thoại AI",
+    href: ROUTES.PUBLIC.CHATBOT,
+    icon: Bot,
+    roles: ["STUDENT", "GUEST"],
+  },
   {
     title: "Tổng quan",
     href: ROUTES.ADMIN.DASHBOARD,
@@ -37,13 +43,12 @@ export const DASHBOARD_NAV_ITEMS: NavItem[] = [
     roles: ["ADMIN"],
   },
   {
-    title: "Kho tài liệu & RAG",
+    title: "Kho tài liệu",
     href: ROUTES.ADMIN.DOCUMENTS,
     icon: FileText,
     roles: ["ADMIN"],
   },
 
-  // --- Phân hệ ADVISOR (UC08, UC09) ---
   {
     title: "Bàn làm việc",
     href: ROUTES.ADVISOR.DASHBOARD,
@@ -54,7 +59,7 @@ export const DASHBOARD_NAV_ITEMS: NavItem[] = [
     title: "Tư vấn trực tiếp",
     href: ROUTES.PORTAL.CHAT,
     icon: MessageSquare,
-    roles: ["ADVISOR"],
+    roles: ["ADVISOR", "STUDENT", "GUEST"],
   },
   {
     title: "Quản lý tài liệu",
@@ -68,9 +73,8 @@ export const DASHBOARD_NAV_ITEMS: NavItem[] = [
  * Lọc danh sách menu theo quyền (Role) của người dùng hiện tại
  */
 export function getNavItemsByRole(role?: string): NavItem[] {
-  if (!role) return [];
-  const normalizedRole = role.toUpperCase();
-  return DASHBOARD_NAV_ITEMS.filter((item) =>
+  const normalizedRole = role?.toUpperCase() || "GUEST";
+  return APP_NAV_ITEMS.filter((item) =>
     item.roles.some((r) => r === normalizedRole)
   );
 }

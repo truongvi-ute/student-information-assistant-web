@@ -68,10 +68,10 @@ export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
   },
   [ROUTES.PORTAL.CHAT]: {
     path: ROUTES.PORTAL.CHAT,
-    title: "Trợ lý AI hỏi đáp — HCMUTE Student Assistant",
+    title: "Tư vấn trực tiếp — HCMUTE Student Assistant",
     access: "protected",
     layout: "dashboard",
-    description: "Trò chuyện trực tiếp cùng trợ lý AI giải đáp thắc mắc đào tạo.",
+    description: "Trao đổi trực tiếp giữa sinh viên và Tư vấn viên.",
   },
   [ROUTES.PORTAL.SCHEDULE]: {
     path: ROUTES.PORTAL.SCHEDULE,
@@ -150,14 +150,14 @@ export const ROUTE_CONFIGS: Record<string, RouteConfig> = {
   [ROUTES.ADVISOR.DASHBOARD]: {
     path: ROUTES.ADVISOR.DASHBOARD,
     title: "Bàn làm việc Tư vấn viên",
-    access: "protected",
+    access: "advisor",
     layout: "dashboard",
     description: "Bàn làm việc tổng quan của Tư vấn viên.",
   },
   [ROUTES.ADVISOR.DOCUMENTS]: {
     path: ROUTES.ADVISOR.DOCUMENTS,
     title: "Quản lý yêu cầu tài liệu",
-    access: "protected",
+    access: "advisor",
     layout: "dashboard",
     description: "Tải lên tài liệu nháp và gửi yêu cầu xét duyệt nguồn tri thức RAG.",
   },
