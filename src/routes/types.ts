@@ -6,7 +6,8 @@ export type RouteAccessType =
   | "public"
   | "auth-only"
   | "protected"
-  | "admin";
+  | "admin"
+  | "advisor";
 
 /**
  * Các loại layout sử dụng trong ứng dụng.

@@ -1,5 +1,5 @@
 export { DashboardLayout } from "./DashboardLayout";
 export { AuthLayout } from "./AuthLayout";
-export { ChatLayout } from "./ChatLayout";
+export { AppLayout } from "./AppLayout";
 export { MainLayout } from "./MainLayout";
 

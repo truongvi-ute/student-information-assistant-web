@@ -2,21 +2,21 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import type { NavItem } from "./navigation.config";
 
-interface DashboardNavProps {
+interface AppNavigationProps {
   items: NavItem[];
   isCollapsed?: boolean;
   onItemClick?: () => void;
 }
 
-export function DashboardNav({
+export function AppNavigation({
   items,
   isCollapsed = false,
   onItemClick,
-}: DashboardNavProps) {
+}: AppNavigationProps) {
   const router = useRouter();
 
   return (
-    <nav className="flex flex-col gap-1 p-2">
+    <nav aria-label="Điều hướng chính" className="flex shrink-0 flex-col gap-1 p-2">
       {items.map((item) => {
         const Icon = item.icon;
         const isActive =
@@ -30,6 +30,8 @@ export function DashboardNav({
             key={item.href}
             href={item.href}
             onClick={onItemClick}
+            aria-label={item.title}
+            aria-current={isActive ? "page" : undefined}
             title={isCollapsed ? item.title : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
               isActive

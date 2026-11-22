@@ -90,7 +90,7 @@ export function isAdminRoute(pathname: string): boolean {
  * Kiểm tra route yêu cầu đăng nhập (bao gồm cả route Admin).
  */
 export function isProtectedRoute(pathname: string): boolean {
-  return hasRouteAccess(pathname, "protected") || hasRouteAccess(pathname, "admin");
+  return hasRouteAccess(pathname, "protected") || hasRouteAccess(pathname, "admin") || hasRouteAccess(pathname, "advisor");
 }
 
 /**
@@ -134,6 +134,10 @@ export function determineRedirect(
   if (isAuthenticated) {
     // Không phải ADMIN thì không được vào các trang /admin/*
     if (isAdminRoute(pathname) && normalizedRole !== "ADMIN") {
+      return getDefaultHomeByRole(normalizedRole);
+    }
+
+    if (hasRouteAccess(pathname, "advisor") && normalizedRole !== "ADVISOR") {
       return getDefaultHomeByRole(normalizedRole);
     }
 

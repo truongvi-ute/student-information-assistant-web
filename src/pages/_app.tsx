@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { sourceSans3 } from "@/styles/fonts";
 import { ChatbotProvider } from "@/contexts/ChatbotContext";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
+import { AppWorkspace } from "@/layouts/AppWorkspace";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { ROUTES } from "@/routes";
 import { RouteGuard, getRouteConfig } from "@/routes";
@@ -34,14 +34,16 @@ export default function NextApp({ Component, pageProps }: AppProps) {
       <AuthProvider>
         <ChatbotProvider>
           <RouteGuard>
-            {isChatPage ? (
-              <ChatWorkspace>
-                <Component {...pageProps} />
-              </ChatWorkspace>
-            ) : isDashboardPage ? (
-              <DashboardLayout title={routeConfig?.title}>
-                <Component {...pageProps} />
-              </DashboardLayout>
+            {isChatPage || isDashboardPage ? (
+              <AppWorkspace>
+                {isDashboardPage && !isChatPage ? (
+                  <DashboardLayout title={routeConfig?.title}>
+                    <Component {...pageProps} />
+                  </DashboardLayout>
+                ) : (
+                  <Component {...pageProps} />
+                )}
+              </AppWorkspace>
             ) : (
               <Component {...pageProps} />
             )}

@@ -7,7 +7,7 @@ import type { ChatProps } from "@/types/chat";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PanelLeft, ChevronLeft } from "lucide-react";
-import { useChatLayout } from "@/layouts/ChatLayout";
+import { useAppLayout } from "@/layouts/AppLayout";
 
 export function ChatContainer({
   accountId,
@@ -15,7 +15,7 @@ export function ChatContainer({
 }: ChatProps) {
   const { user: authUser } = useAuth();
   const currentUser = propCurrentUser || authUser;
-  const { isSidebarOpen, openSidebar } = useChatLayout();
+  const { isSidebarOpen, openSidebar } = useAppLayout();
 
   const {
     selectedContact,
