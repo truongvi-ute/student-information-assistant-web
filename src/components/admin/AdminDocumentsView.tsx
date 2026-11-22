@@ -1,9 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useRouter } from "next/router";
 import {
   Search,
-  Clock,
-  Edit,
-  RotateCcw,
   Check,
   X,
   ShieldAlert,
@@ -26,7 +24,18 @@ type AdminDocTab = "REPOSITORY" | "PENDING_REQUESTS";
 
 export function AdminDocumentsView() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminDocTab>("REPOSITORY");
+  const router = useRouter();
+  const activeTab: AdminDocTab = router.query.tab === "requests" ? "PENDING_REQUESTS" : "REPOSITORY";
+
+  const setActiveTab = (tab: AdminDocTab) => {
+    const query = { ...router.query };
+    if (tab === "PENDING_REQUESTS") {
+      query.tab = "requests";
+    } else {
+      query.tab = "repository";
+    }
+    void router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
+  };
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [requests, setRequests] = useState<DocumentRagRequestResponse[]>([]);
   const [isDocumentsLoading, setIsDocumentsLoading] = useState(true);
@@ -135,6 +144,24 @@ export function AdminDocumentsView() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!router.isReady || router.query.tab || isRequestsLoading || requestsError) {
+      return;
+    }
+
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: {
+          ...router.query,
+          tab: requests.length > 0 ? "requests" : "repository",
+        },
+      },
+      undefined,
+      { shallow: true }
+    );
+  }, [router, isRequestsLoading, requestsError, requests.length]);
 
   const filteredDocuments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -274,12 +301,15 @@ export function AdminDocumentsView() {
     }
   };
 
-  const renderRagStatusBadge = (status: DocumentRagStatus) => {
+  const renderRagStatusBadge = (status: DocumentRagStatus, lifecycle: DocumentLifecycleStatus) => {
+    if (lifecycle !== "ACTIVE") {
+      return <span className="text-slate-600">{lifecycle === "DRAFT" ? "Chưa đưa vào sử dụng" : "Đã ngừng sử dụng"}</span>;
+    }
     switch (status) {
       case "READY":
         return (
           <span className="inline-flex rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 whitespace-nowrap">
-            Sẵn sàng
+            Sẵn sàng sử dụng
           </span>
         );
       case "PROCESSING":
@@ -292,20 +322,20 @@ export function AdminDocumentsView() {
       case "FAILED":
         return (
           <span className="inline-flex rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 whitespace-nowrap">
-            Thất bại
+            Xử lý thất bại
           </span>
         );
       case "DISABLED":
         return (
           <span className="inline-flex rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-500 whitespace-nowrap">
-            Vô hiệu
+            Đã tắt
           </span>
         );
       case "NOT_INDEXED":
       default:
         return (
           <span className="inline-flex rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600 whitespace-nowrap">
-            Chưa lập chỉ mục
+            Chưa xử lý
           </span>
         );
     }
@@ -416,18 +446,16 @@ export function AdminDocumentsView() {
                   <thead className="border-b border-slate-100 bg-slate-50 font-medium text-slate-500 uppercase tracking-wider">
                     <tr>
                       <th className="px-4 py-3">Tài liệu</th>
-                      <th className="px-4 py-3 whitespace-nowrap">Tệp đính kèm</th>
-                      <th className="px-4 py-3 whitespace-nowrap">Quyền tải</th>
-                      <th className="px-4 py-3 whitespace-nowrap">Trạng thái</th>
-                      <th className="px-4 py-3 whitespace-nowrap">Trạng thái RAG</th>
-                      <th className="px-4 py-3 whitespace-nowrap">Người tải</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap">Thao tác</th>
+                      <th className="px-4 py-3 whitespace-nowrap">Tải xuống</th>
+                      <th className="px-4 py-3 whitespace-nowrap">Trạng thái tài liệu</th>
+                      <th className="px-4 py-3 whitespace-nowrap">Trạng thái xử lý</th>
+                      <th className="px-4 py-3 whitespace-nowrap">Người tải lên</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {isDocumentsLoading ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                        <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
                           <div className="inline-flex items-center gap-2">
                             <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                             <span>Đang tải kho tài liệu...</span>
@@ -436,7 +464,7 @@ export function AdminDocumentsView() {
                       </tr>
                     ) : documentsError ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-red-500">
+                        <td colSpan={5} className="px-4 py-8 text-center text-red-500">
                           <p>{documentsError}</p>
                           <button
                             type="button"
@@ -453,10 +481,10 @@ export function AdminDocumentsView() {
                     ) : filteredDocuments.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={5}
                           className="px-4 py-8 text-center text-slate-400"
                         >
-                          Kho tài liệu hiện đang trống.
+                          {documents.length === 0 ? "Kho tài liệu hiện đang trống." : "Không tìm thấy tài liệu phù hợp."}
                         </td>
                       </tr>
                     ) : (
@@ -469,22 +497,14 @@ export function AdminDocumentsView() {
                             <p className="font-medium text-slate-900">
                               {doc.title}
                             </p>
+                            <p className="mt-0.5 text-[11px] text-slate-500" title={doc.originalFilename}>
+                              {doc.originalFilename} · {formatFileSize(doc.sizeBytes)}
+                            </p>
                             {doc.description && (
                               <p className="mt-0.5 line-clamp-1 text-slate-500 text-[11px]">
                                 {doc.description}
                               </p>
                             )}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <p
-                              className="font-mono text-[11px] text-slate-700 max-w-[200px] truncate"
-                              title={doc.originalFilename}
-                            >
-                              {doc.originalFilename}
-                            </p>
-                            <span className="text-[11px] text-slate-400">
-                              {formatFileSize(doc.sizeBytes)}
-                            </span>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span
@@ -494,41 +514,17 @@ export function AdminDocumentsView() {
                                   : "bg-slate-50 text-slate-400 border-slate-100"
                               }`}
                             >
-                              {doc.allowDownload ? "Cho phép tải" : "Không tải"}
+                              {doc.allowDownload ? "Cho phép" : "Không cho phép"}
                             </span>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             {renderStatusBadge(doc.lifecycleStatus)}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
-                            {renderRagStatusBadge(doc.ragStatus)}
+                            {renderRagStatusBadge(doc.ragStatus, doc.lifecycleStatus)}
                           </td>
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                             {doc.uploadedByName || "—"}
-                          </td>
-                          <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <div className="inline-flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                disabled
-                                title="Chức năng chỉnh sửa tài liệu đang được phát triển"
-                                className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-400 cursor-not-allowed"
-                              >
-                                <Edit className="h-3 w-3 text-slate-400" />
-                                <span>Sửa</span>
-                              </button>
-                              {doc.ragStatus === "FAILED" && (
-                                <button
-                                  type="button"
-                                  disabled
-                                  title="Chức năng thử lại RAG đang được phát triển"
-                                  className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50/50 px-2.5 py-1 text-xs text-amber-400 cursor-not-allowed"
-                                >
-                                  <RotateCcw className="h-3 w-3" />
-                                  <span>Thử lại</span>
-                                </button>
-                              )}
-                            </div>
                           </td>
                         </tr>
                       ))
@@ -549,14 +545,13 @@ export function AdminDocumentsView() {
                     <th className="px-4 py-3">Tài liệu</th>
                     <th className="px-4 py-3 whitespace-nowrap">Người gửi</th>
                     <th className="px-4 py-3 whitespace-nowrap">Ngày gửi</th>
-                    <th className="px-4 py-3 whitespace-nowrap">Trạng thái</th>
                     <th className="px-4 py-3 text-right whitespace-nowrap">Xét duyệt</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {isRequestsLoading ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
                         <div className="inline-flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                           <span>Đang tải danh sách yêu cầu chờ duyệt...</span>
@@ -565,7 +560,7 @@ export function AdminDocumentsView() {
                     </tr>
                   ) : requestsError ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-red-500">
+                      <td colSpan={5} className="px-4 py-8 text-center text-red-500">
                         <p>{requestsError}</p>
                         <button
                           type="button"
@@ -582,7 +577,7 @@ export function AdminDocumentsView() {
                   ) : requests.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={5}
                         className="px-4 py-8 text-center text-slate-400"
                       >
                         Không có yêu cầu nào đang chờ xét duyệt.
@@ -625,12 +620,6 @@ export function AdminDocumentsView() {
                           </td>
                           <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
                             {new Date(req.createdAt).toLocaleDateString("vi-VN")}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200">
-                              <Clock className="h-3 w-3" />
-                              Chờ duyệt
-                            </span>
                           </td>
                           <td className="px-4 py-3 text-right whitespace-nowrap">
                             <div className="inline-flex items-center justify-end gap-1.5">

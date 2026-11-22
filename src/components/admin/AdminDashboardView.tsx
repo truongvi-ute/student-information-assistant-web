@@ -36,34 +36,34 @@ export function AdminDashboardView() {
   const statCards = [
     {
       title: "Tổng người dùng",
-      value: "0",
-      desc: "0 Sinh viên · 0 Tư vấn viên",
+      value: "—",
+      desc: "Chưa có dữ liệu thống kê",
       icon: Users,
       href: ROUTES.ADMIN.USERS,
       color: "text-[#1D4ED8] bg-[#EFF6FF]",
     },
     {
       title: "Danh mục đào tạo",
-      value: "0",
+      value: "—",
       desc: "Ngành, Hệ, Khóa & Phòng ban",
       icon: BookOpen,
       href: ROUTES.ADMIN.DEPARTMENTS,
       color: "text-[#15803D] bg-[#F0FDF4]",
     },
     {
-      title: "Nguồn tri thức RAG",
-      value: "0",
-      desc: "Tài liệu ACTIVE & READY",
+      title: "Tài liệu sẵn sàng cho Chatbot",
+      value: "—",
+      desc: "Chưa có dữ liệu thống kê",
       icon: FileText,
       href: ROUTES.ADMIN.DOCUMENTS,
       color: "text-[#0369A1] bg-[#F0F9FF]",
     },
     {
       title: "Yêu cầu chờ duyệt",
-      value: "0",
-      desc: "Đề xuất từ Tư vấn viên (PENDING)",
+      value: "—",
+      desc: "Chưa có dữ liệu thống kê",
       icon: Clock,
-      href: ROUTES.ADMIN.DOCUMENTS,
+      href: `${ROUTES.ADMIN.DOCUMENTS}?tab=requests`,
       color: "text-[#D97706] bg-[#FFFBEB]",
     },
   ];
@@ -88,7 +88,7 @@ export function AdminDashboardView() {
             Tổng quan Quản trị hệ thống
           </h2>
           <p className="mt-1 text-sm text-[#64748B]">
-            Xin chào, {user?.fullName || "Quản trị viên"}. Theo dõi hoạt động người dùng, danh mục đào tạo và nguồn tri thức RAG.
+            Xin chào, {user?.fullName || "Quản trị viên"}. Theo dõi hoạt động người dùng, danh mục đào tạo và kho tài liệu.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -146,11 +146,11 @@ export function AdminDashboardView() {
                 Yêu cầu tài liệu chờ xét duyệt
               </h3>
               <p className="text-xs text-[#64748B]">
-                Các đề xuất ADD / UPDATE / DELETE từ Tư vấn viên
+                Các yêu cầu từ Tư vấn viên
               </p>
             </div>
             <Link
-              href={ROUTES.ADMIN.DOCUMENTS}
+              href={`${ROUTES.ADMIN.DOCUMENTS}?tab=requests`}
               className="inline-flex items-center gap-1 text-xs font-semibold text-[#1D4ED8] hover:underline"
             >
               Xem tất cả
@@ -161,7 +161,7 @@ export function AdminDashboardView() {
           <div className="mt-4 divide-y divide-[#F1F5F9]">
             {PENDING_REQUESTS.length === 0 ? (
               <p className="py-8 text-center text-sm text-[#64748B]">
-                Hiện chưa có yêu cầu tài liệu nào đang chờ xét duyệt.
+                Chưa có dữ liệu yêu cầu. Xem danh sách để kiểm tra.
               </p>
             ) : (
               PENDING_REQUESTS.map((req) => (
@@ -218,7 +218,7 @@ export function AdminDashboardView() {
           <div className="mt-4 divide-y divide-[#F1F5F9]">
             {RECENT_AUDIT_LOGS.length === 0 ? (
               <p className="py-8 text-center text-sm text-[#64748B]">
-                Chưa có nhật ký hoạt động nào được ghi nhận.
+                Chưa có dữ liệu nhật ký hoạt động.
               </p>
             ) : (
               RECENT_AUDIT_LOGS.map((log) => (
