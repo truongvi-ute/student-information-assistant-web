@@ -244,7 +244,3 @@ nextjs-dev-overlay,
   color: transparent;
   padding-block: 1px;
 }
-
-.sia-pdf-mark-focused {
-  background-color: rgba(251, 191, 36, 0.65);
-}

@@ -1,7 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Crosshair, Loader2, ZoomIn, ZoomOut } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Crosshair, Loader2, ZoomIn, ZoomOut } from "lucide-react";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import { Button } from "@/components/ui/button";
 import type { AiCitationResponse } from "@/types/chatbot";
+import {
+  analyzePage,
+  applyPageMarks,
+  buildChunkPhrases,
+  buildNormTextFromTextItems,
+  buildPageTextIndex,
+  isSameChunk,
+  pickChunkPages,
+  totalPhraseLength,
+  type ChunkPageHighlight,
+  type ChunkPhrases,
+} from "@/utils/pdf-highlight";
 
 interface PdfHighlightViewerProps {
   pdfBytes: Uint8Array;
@@ -10,256 +23,28 @@ interface PdfHighlightViewerProps {
   onMatchedPagesChange?: (pages: number[]) => void;
 }
 
-interface SearchPhrase {
-  normalized: string;
-  isFocused: boolean;
+interface ChunkMatch {
+  chunkIdx: number;
+  pageNumber: number;
 }
 
-interface SpanMatchRange {
-  start: number;
-  end: number;
-  isFocused: boolean;
+interface PageMeta {
+  width: number;
+  height: number;
+  normText: string;
 }
 
-function cleanMarkdownForPdfSearch(raw: string): string {
-  return raw
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<\/?[^>]+>/g, " ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/^\s*[-*+]\s+/gm, "")
-    .replace(/[*_`~]/g, "")
-    .replace(/\|/g, " ")
-    .replace(/\s*\/\s*/g, "/")
-    .replace(/\s+/g, " ")
-    .trim();
+interface PdfPreparedData {
+  pdfjs: typeof import("pdfjs-dist");
+  pdfDoc: PDFDocumentProxy;
+  pages: PageMeta[];
+  chunksByPage: Map<number, Array<{ chunkIdx: number; phrases: ChunkPhrases }>>;
+  matchedPages: number[];
+  matches: ChunkMatch[];
+  initialIdx: number;
 }
 
-function buildSearchPhrases(
-  hitChunks: AiCitationResponse[],
-  focusedChunk?: AiCitationResponse | null
-): SearchPhrase[] {
-  const seen = new Set<string>();
-  const phrases: SearchPhrase[] = [];
-
-  const addPhrase = (candidate: string, isFocused: boolean) => {
-    const normalized = candidate.replace(/\s+/g, " ").trim().toLowerCase();
-    if (normalized.length < 10) return;
-    if (/^[-:\s.]+$/.test(normalized)) return;
-    if (seen.has(normalized)) return;
-    seen.add(normalized);
-    phrases.push({ normalized, isFocused });
-  };
-
-  for (const chunk of hitChunks) {
-    const raw = chunk.quotedContent ?? "";
-    if (!raw.trim()) continue;
-    const isFocused = Boolean(
-      focusedChunk &&
-        (focusedChunk === chunk ||
-          (focusedChunk.chunkReference &&
-            focusedChunk.chunkReference === chunk.chunkReference &&
-            focusedChunk.quotedContent === chunk.quotedContent))
-    );
-
-    const lines = raw.split(/\n+/);
-    for (const line of lines) {
-      const cleanedLine = cleanMarkdownForPdfSearch(line);
-      if (cleanedLine.length < 10) continue;
-
-      if (cleanedLine.length <= 140) {
-        addPhrase(cleanedLine, isFocused);
-      } else {
-        const clauses = cleanedLine.split(/(?<=[.;:])\s+/);
-        for (const clause of clauses) {
-          if (clause.length >= 12 && clause.length <= 140) {
-            addPhrase(clause, isFocused);
-          } else if (clause.length > 140) {
-            const words = clause.split(/\s+/);
-            for (let i = 0; i < words.length; i += 8) {
-              const slice = words.slice(i, i + 10).join(" ");
-              addPhrase(slice, isFocused);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return phrases.sort((a, b) => b.normalized.length - a.normalized.length);
-}
-
-function findPhraseOccurrences(
-  normText: string,
-  phrase: string
-): Array<{ start: number; end: number }> {
-  const ranges: Array<{ start: number; end: number }> = [];
-  let idx = normText.indexOf(phrase);
-  while (idx !== -1) {
-    ranges.push({ start: idx, end: idx + phrase.length });
-    idx = normText.indexOf(phrase, idx + phrase.length);
-  }
-  return ranges;
-}
-
-function highlightPdfTextLayer(
-  textDivs: HTMLElement[],
-  phrases: SearchPhrase[]
-): { matchCount: number; firstMarkEl: HTMLElement | null; hasFocusedMatch: boolean } {
-  const spans = textDivs.filter(
-    (el) => el.tagName === "SPAN" && (el.textContent?.length ?? 0) > 0
-  );
-  if (spans.length === 0 || phrases.length === 0) {
-    return { matchCount: 0, firstMarkEl: null, hasFocusedMatch: false };
-  }
-
-  let normText = "";
-  const charMap: Array<{ spanIdx: number; charIdx: number } | null> = [];
-  let prevWasSpace = true;
-
-  for (let spanIdx = 0; spanIdx < spans.length; spanIdx++) {
-    const raw = spans[spanIdx].textContent ?? "";
-    if (spanIdx > 0 && raw.length > 0 && !prevWasSpace && !/^\s/.test(raw)) {
-      normText += " ";
-      charMap.push(null);
-      prevWasSpace = true;
-    }
-
-    for (let charIdx = 0; charIdx < raw.length; charIdx++) {
-      const ch = raw[charIdx];
-      if (/\s/.test(ch)) {
-        if (!prevWasSpace) {
-          normText += " ";
-          charMap.push({ spanIdx, charIdx });
-          prevWasSpace = true;
-        }
-      } else {
-        // Bỏ qua khoảng trắng sau dấu chấm/gạch chéo để khớp giữa "I. 3" (PDF) và "I.3" (Markdown)
-        const isSpaceAfterPunct =
-          prevWasSpace &&
-          normText.length >= 2 &&
-          /[./]/.test(normText[normText.length - 2]);
-        if (isSpaceAfterPunct && !/\s/.test(ch)) {
-          normText = normText.slice(0, -1);
-          charMap.pop();
-        }
-        normText += ch.toLowerCase();
-        charMap.push({ spanIdx, charIdx });
-        prevWasSpace = false;
-      }
-    }
-  }
-
-  const perSpanRanges = new Map<number, SpanMatchRange[]>();
-  let totalMatches = 0;
-  let hasFocusedMatch = false;
-
-  const markNormRange = (start: number, end: number, isFocused: boolean) => {
-    const localBounds = new Map<number, { min: number; max: number }>();
-    for (let pos = start; pos < end; pos++) {
-      const mapped = charMap[pos];
-      if (!mapped) continue;
-      const existing = localBounds.get(mapped.spanIdx);
-      if (!existing) {
-        localBounds.set(mapped.spanIdx, { min: mapped.charIdx, max: mapped.charIdx + 1 });
-      } else {
-        existing.min = Math.min(existing.min, mapped.charIdx);
-        existing.max = Math.max(existing.max, mapped.charIdx + 1);
-      }
-    }
-
-    for (const [spanIdx, bound] of localBounds.entries()) {
-      const list = perSpanRanges.get(spanIdx) ?? [];
-      list.push({ start: bound.min, end: bound.max, isFocused });
-      perSpanRanges.set(spanIdx, list);
-    }
-  };
-
-  for (const phraseObj of phrases) {
-    const normalizedPhrase = phraseObj.normalized.replace(/([./])\s+/g, "$1");
-    let hits = findPhraseOccurrences(normText, normalizedPhrase);
-
-    // Fallback: nếu dòng trong PDF bị ngắt/lệch một phần, trượt từng cụm 4 từ liên tiếp để giữ đủ đầu/cuối dòng
-    if (hits.length === 0 && normalizedPhrase.length >= 20) {
-      const words = normalizedPhrase.split(" ").filter(Boolean);
-      if (words.length >= 4) {
-        for (let i = 0; i <= words.length - 4; i += 2) {
-          const sub = words.slice(i, i + 4).join(" ");
-          if (sub.length >= 12) {
-            hits = hits.concat(findPhraseOccurrences(normText, sub));
-          }
-        }
-      }
-    }
-
-    if (hits.length > 0) {
-      totalMatches += hits.length;
-      if (phraseObj.isFocused) {
-        hasFocusedMatch = true;
-      }
-      for (const hit of hits) {
-        markNormRange(hit.start, hit.end, phraseObj.isFocused);
-      }
-    }
-  }
-
-  if (perSpanRanges.size === 0) {
-    return { matchCount: 0, firstMarkEl: null, hasFocusedMatch: false };
-  }
-
-  let firstMarkEl: HTMLElement | null = null;
-  let firstFocusedMarkEl: HTMLElement | null = null;
-
-  for (const [spanIdx, rawRanges] of perSpanRanges.entries()) {
-    const span = spans[spanIdx];
-    const originalText = span.textContent ?? "";
-    if (!originalText) continue;
-
-    rawRanges.sort((a, b) => a.start - b.start || b.end - a.end);
-    const merged: SpanMatchRange[] = [];
-    for (const r of rawRanges) {
-      const last = merged[merged.length - 1];
-      if (!last || r.start > last.end) {
-        merged.push({ ...r });
-      } else {
-        last.end = Math.max(last.end, r.end);
-        last.isFocused = last.isFocused || r.isFocused;
-      }
-    }
-
-    const fragment = document.createDocumentFragment();
-    let cursor = 0;
-    for (const range of merged) {
-      if (range.start > cursor) {
-        fragment.appendChild(document.createTextNode(originalText.slice(cursor, range.start)));
-      }
-      const mark = document.createElement("mark");
-      mark.className = range.isFocused
-        ? "sia-pdf-mark sia-pdf-mark-focused"
-        : "sia-pdf-mark";
-      mark.textContent = originalText.slice(range.start, range.end);
-      fragment.appendChild(mark);
-
-      if (!firstMarkEl) firstMarkEl = mark;
-      if (range.isFocused && !firstFocusedMarkEl) firstFocusedMarkEl = mark;
-
-      cursor = range.end;
-    }
-    if (cursor < originalText.length) {
-      fragment.appendChild(document.createTextNode(originalText.slice(cursor)));
-    }
-
-    span.textContent = "";
-    span.appendChild(fragment);
-  }
-
-  return {
-    matchCount: totalMatches,
-    firstMarkEl: firstFocusedMarkEl ?? firstMarkEl,
-    hasFocusedMatch,
-  };
-}
+const TEXT_SCAN_BATCH_SIZE = 8;
 
 export function PdfHighlightViewer({
   pdfBytes,
@@ -267,75 +52,258 @@ export function PdfHighlightViewer({
   focusedChunk,
   onMatchedPagesChange,
 }: PdfHighlightViewerProps) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const firstScrollTargetRef = useRef<HTMLElement | null>(null);
+  const focusedChunkRef = useRef(focusedChunk);
+  const onMatchedPagesChangeRef = useRef(onMatchedPagesChange);
+
+  const pageCardsRef = useRef<HTMLElement[]>([]);
+  const chunkAnchorsRef = useRef<Map<number, HTMLElement>>(new Map());
+  const renderPageRef = useRef<((pageIdx: number) => Promise<void>) | null>(null);
+  const activeIdxRef = useRef(0);
+
   const [scale, setScale] = useState(1.15);
-  const [numPages, setNumPages] = useState(0);
-  const [matchedPages, setMatchedPages] = useState<number[]>([]);
-  const [isRendering, setIsRendering] = useState(true);
+  const [prepared, setPrepared] = useState<PdfPreparedData | null>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [isLoadingDoc, setIsLoadingDoc] = useState(true);
   const [renderError, setRenderError] = useState<string | null>(null);
 
-  const searchPhrases = useMemo(
-    () => buildSearchPhrases(hitChunks, focusedChunk),
-    [hitChunks, focusedChunk]
-  );
+  useEffect(() => {
+    focusedChunkRef.current = focusedChunk;
+  }, [focusedChunk]);
 
-  const scrollToFirstMatch = useCallback(() => {
-    if (firstScrollTargetRef.current) {
-      firstScrollTargetRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
+  useEffect(() => {
+    onMatchedPagesChangeRef.current = onMatchedPagesChange;
+  }, [onMatchedPagesChange]);
+
+  useEffect(() => {
+    activeIdxRef.current = activeIdx;
+  }, [activeIdx]);
+
+  const scrollToMatch = useCallback((match: ChunkMatch | undefined) => {
+    if (!match) return;
+    const pageIdx = match.pageNumber - 1;
+    const anchor = chunkAnchorsRef.current.get(match.chunkIdx);
+    if (anchor && anchor.isConnected) {
+      anchor.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    const pageCard = pageCardsRef.current[pageIdx];
+    pageCard?.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    // Nếu trang chưa render kịp, ưu tiên render ngay rồi tinh chỉnh lại vị trí mark
+    const renderFn = renderPageRef.current;
+    if (renderFn) {
+      void renderFn(pageIdx).then(() => {
+        const readyAnchor = chunkAnchorsRef.current.get(match.chunkIdx);
+        readyAnchor?.scrollIntoView({ behavior: "smooth", block: "center" });
       });
     }
   }, []);
 
+  const goToMatch = useCallback(
+    (nextIdx: number) => {
+      const list = prepared?.matches ?? [];
+      if (list.length === 0) return;
+      const normalized = ((nextIdx % list.length) + list.length) % list.length;
+      setActiveIdx(normalized);
+      scrollToMatch(list[normalized]);
+    },
+    [prepared, scrollToMatch]
+  );
+
+  // Pha 1: Tải PDF + quét nhanh text (getTextContent song song, KHÔNG vẽ canvas) để biết ngay trang khớp
   useEffect(() => {
     let cancelled = false;
-    const host = containerRef.current;
-    if (!host) return;
-
     let loadingTask: { destroy: () => Promise<void> } | null = null;
-    const activeRenderTasks: Array<{ cancel: () => void }> = [];
 
-    const renderPdf = async () => {
+    const prepareDocument = async () => {
       try {
+        setIsLoadingDoc(true);
+        setRenderError(null);
+        setPrepared(null);
+
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-
         if (cancelled) return;
+
         const task = pdfjs.getDocument({ data: pdfBytes.slice(0) });
         loadingTask = task;
 
         const pdfDoc = await task.promise;
         if (cancelled) return;
 
-        setNumPages(pdfDoc.numPages);
-        host.innerHTML = "";
-        firstScrollTargetRef.current = null;
-
-        const foundPages: number[] = [];
-        const outputScale = Math.min(window.devicePixelRatio || 1, 2);
-
-        for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber++) {
+        const pages: PageMeta[] = new Array(pdfDoc.numPages);
+        for (let start = 1; start <= pdfDoc.numPages; start += TEXT_SCAN_BATCH_SIZE) {
           if (cancelled) return;
+          const end = Math.min(start + TEXT_SCAN_BATCH_SIZE - 1, pdfDoc.numPages);
+          const batchNums = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+          await Promise.all(
+            batchNums.map(async (pageNumber) => {
+              const page = await pdfDoc.getPage(pageNumber);
+              const viewport = page.getViewport({ scale: 1 });
+              const textContent = await page.getTextContent();
+              const normText = buildNormTextFromTextItems(
+                textContent.items as ReadonlyArray<{ str?: string; hasEOL?: boolean }>
+              );
+              pages[pageNumber - 1] = {
+                width: viewport.width,
+                height: viewport.height,
+                normText,
+              };
+            })
+          );
+        }
+        if (cancelled) return;
 
-          const page = await pdfDoc.getPage(pageNumber);
+        const chunksByPage = new Map<
+          number,
+          Array<{ chunkIdx: number; phrases: ChunkPhrases }>
+        >();
+        const bestPageByChunk = new Map<number, number>();
+
+        hitChunks.forEach((chunk, chunkIdx) => {
+          const phrases = buildChunkPhrases(chunk.quotedContent ?? "");
+          const totalLen = totalPhraseLength(phrases);
+          if (totalLen === 0) return;
+
+          const analyses = pages.map((p) => analyzePage(p.normText, phrases));
+          const hintIdx =
+            chunk.pageNumber != null && chunk.pageNumber >= 1 ? chunk.pageNumber - 1 : null;
+          const picked = pickChunkPages(analyses, totalLen, hintIdx);
+          if (!picked) return;
+
+          bestPageByChunk.set(chunkIdx, picked.bestIdx);
+          for (const pageIdx of picked.pageIdxs) {
+            const analysis = analyses[pageIdx];
+            if (analysis.exactRanges.length === 0 && analysis.windowRanges.length === 0) {
+              continue;
+            }
+            const list = chunksByPage.get(pageIdx) ?? [];
+            list.push({ chunkIdx, phrases });
+            chunksByPage.set(pageIdx, list);
+          }
+        });
+
+        const matchedPages = Array.from(chunksByPage.keys())
+          .sort((a, b) => a - b)
+          .map((idx) => idx + 1);
+
+        const rawMatches: ChunkMatch[] = [];
+        hitChunks.forEach((chunk, chunkIdx) => {
+          const bestIdx = bestPageByChunk.get(chunkIdx);
+          if (bestIdx != null) {
+            rawMatches.push({ chunkIdx, pageNumber: bestIdx + 1 });
+          } else if (
+            chunk.pageNumber != null &&
+            chunk.pageNumber >= 1 &&
+            chunk.pageNumber <= pdfDoc.numPages
+          ) {
+            rawMatches.push({ chunkIdx, pageNumber: chunk.pageNumber });
+          }
+        });
+        rawMatches.sort((a, b) => a.pageNumber - b.pageNumber || a.chunkIdx - b.chunkIdx);
+
+        const focused = focusedChunkRef.current;
+        const focusedChunkIdx = focused
+          ? hitChunks.findIndex((c) => isSameChunk(c, focused))
+          : -1;
+        const initialIdx = Math.max(
+          0,
+          rawMatches.findIndex((m) => m.chunkIdx === focusedChunkIdx)
+        );
+
+        if (!cancelled) {
+          onMatchedPagesChangeRef.current?.(matchedPages);
+          setActiveIdx(initialIdx);
+          setPrepared({
+            pdfjs,
+            pdfDoc,
+            pages,
+            chunksByPage,
+            matchedPages,
+            matches: rawMatches,
+            initialIdx,
+          });
+          setIsLoadingDoc(false);
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const message =
+            err instanceof Error ? err.message : "Không thể hiển thị file PDF gốc.";
+          setRenderError(message);
+          setIsLoadingDoc(false);
+        }
+      }
+    };
+
+    void prepareDocument();
+
+    return () => {
+      cancelled = true;
+      if (loadingTask) {
+        void loadingTask.destroy().catch(() => undefined);
+      }
+    };
+  }, [pdfBytes, hitChunks]);
+
+  // Pha 2: Tạo khung placeholder cho mọi trang, ưu tiên render trang khớp + lazy-render khi cuộn
+  useEffect(() => {
+    if (!prepared) return;
+    const host = containerRef.current;
+    const scrollRoot = scrollRef.current;
+    if (!host || !scrollRoot) return;
+
+    let cancelled = false;
+    const { pdfjs, pdfDoc, pages, chunksByPage, matches, initialIdx } = prepared;
+    const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+
+    host.innerHTML = "";
+    chunkAnchorsRef.current = new Map();
+
+    const pageCards: HTMLElement[] = [];
+    const pageStates: Array<"idle" | "rendering" | "rendered"> = new Array(pages.length).fill(
+      "idle"
+    );
+    const inFlightPromises = new Map<number, Promise<void>>();
+    const activeRenderTasks = new Map<number, { cancel: () => void }>();
+
+    pages.forEach((meta, idx) => {
+      const pageNumber = idx + 1;
+      const pageCard = document.createElement("div");
+      pageCard.className =
+        "relative mx-auto overflow-hidden rounded-lg border border-[#CBD5E1] bg-white shadow-sm";
+      pageCard.style.width = `${meta.width * scale}px`;
+      pageCard.style.height = `${meta.height * scale}px`;
+      pageCard.dataset.pageIndex = String(idx);
+      pageCard.dataset.pageNumber = String(pageNumber);
+
+      const pageLabel = document.createElement("div");
+      pageLabel.className =
+        "pointer-events-none absolute right-2.5 top-2 z-10 rounded bg-[#0F172A]/65 px-2 py-0.5 text-[10px] font-medium text-white";
+      pageLabel.textContent = `Trang ${pageNumber}/${pages.length}`;
+      pageCard.appendChild(pageLabel);
+
+      host.appendChild(pageCard);
+      pageCards.push(pageCard);
+    });
+    pageCardsRef.current = pageCards;
+
+    const renderSinglePage = (pageIdx: number): Promise<void> => {
+      if (cancelled || pageIdx < 0 || pageIdx >= pages.length) return Promise.resolve();
+      if (pageStates[pageIdx] === "rendered") return Promise.resolve();
+      const existing = inFlightPromises.get(pageIdx);
+      if (existing) return existing;
+
+      pageStates[pageIdx] = "rendering";
+      const promise = (async () => {
+        try {
+          const page = await pdfDoc.getPage(pageIdx + 1);
           if (cancelled) return;
 
           const viewport = page.getViewport({ scale });
-
-          const pageCard = document.createElement("div");
-          pageCard.className =
-            "relative mx-auto overflow-hidden rounded-lg border border-[#CBD5E1] bg-white shadow-sm";
-          pageCard.style.width = `${viewport.width}px`;
-          pageCard.style.height = `${viewport.height}px`;
-          pageCard.dataset.pageNumber = String(pageNumber);
-
-          const pageLabel = document.createElement("div");
-          pageLabel.className =
-            "pointer-events-none absolute right-2.5 top-2 z-10 rounded bg-[#0F172A]/65 px-2 py-0.5 text-[10px] font-medium text-white";
-          pageLabel.textContent = `Trang ${pageNumber}/${pdfDoc.numPages}`;
-          pageCard.appendChild(pageLabel);
+          const pageCard = pageCards[pageIdx];
 
           const canvas = document.createElement("canvas");
           canvas.width = Math.floor(viewport.width * outputScale);
@@ -343,14 +311,13 @@ export function PdfHighlightViewer({
           canvas.style.width = `${viewport.width}px`;
           canvas.style.height = `${viewport.height}px`;
           canvas.className = "block";
-          pageCard.appendChild(canvas);
 
           const textLayerDiv = document.createElement("div");
           textLayerDiv.className = "sia-pdf-text-layer";
           textLayerDiv.style.setProperty("--total-scale-factor", String(scale));
-          pageCard.appendChild(textLayerDiv);
 
-          host.appendChild(pageCard);
+          pageCard.appendChild(canvas);
+          pageCard.appendChild(textLayerDiv);
 
           const ctx = canvas.getContext("2d");
           if (ctx) {
@@ -361,10 +328,10 @@ export function PdfHighlightViewer({
               transform:
                 outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined,
             });
-            activeRenderTasks.push(renderTask);
+            activeRenderTasks.set(pageIdx, renderTask);
             await renderTask.promise;
+            activeRenderTasks.delete(pageIdx);
           }
-
           if (cancelled) return;
 
           const textContent = await page.getTextContent();
@@ -376,66 +343,95 @@ export function PdfHighlightViewer({
             viewport,
           });
           await textLayer.render();
-
           if (cancelled) return;
 
-          const result = highlightPdfTextLayer(textLayer.textDivs, searchPhrases);
-          if (result.matchCount > 0) {
-            foundPages.push(pageNumber);
-            if (
-              result.firstMarkEl &&
-              (!firstScrollTargetRef.current || result.hasFocusedMatch)
-            ) {
-              firstScrollTargetRef.current = result.firstMarkEl;
+          const pageChunks = chunksByPage.get(pageIdx);
+          if (pageChunks && pageChunks.length > 0) {
+            const textIndex = buildPageTextIndex(textLayer.textDivs);
+            const inputs: ChunkPageHighlight[] = [];
+            for (const { chunkIdx, phrases } of pageChunks) {
+              const analysis = analyzePage(textIndex.normText, phrases);
+              if (analysis.exactRanges.length > 0 || analysis.windowRanges.length > 0) {
+                inputs.push({ chunkIdx, analysis, shortPhrases: phrases.short });
+              }
             }
-          } else if (
-            !firstScrollTargetRef.current &&
-            focusedChunk?.pageNumber === pageNumber
-          ) {
-            firstScrollTargetRef.current = pageCard;
+            if (inputs.length > 0) {
+              const { exactAnchors, anyAnchors } = applyPageMarks(textIndex, inputs);
+              for (const { chunkIdx } of pageChunks) {
+                const anchor = exactAnchors.get(chunkIdx) ?? anyAnchors.get(chunkIdx);
+                if (anchor && !chunkAnchorsRef.current.has(chunkIdx)) {
+                  chunkAnchorsRef.current.set(chunkIdx, anchor);
+                }
+              }
+            }
           }
-        }
 
-        if (!cancelled) {
-          setMatchedPages(foundPages);
-          onMatchedPagesChange?.(foundPages);
-          setRenderError(null);
-          setIsRendering(false);
-          if (firstScrollTargetRef.current) {
-            firstScrollTargetRef.current.scrollIntoView({
-              behavior: "smooth",
-              block: "center",
-            });
+          pageStates[pageIdx] = "rendered";
+        } catch {
+          if (!cancelled) {
+            pageStates[pageIdx] = "idle";
           }
+        } finally {
+          inFlightPromises.delete(pageIdx);
         }
-      } catch (err: unknown) {
-        if (!cancelled) {
-          const message =
-            err instanceof Error
-              ? err.message
-              : "Không thể hiển thị file PDF gốc.";
-          setRenderError(message);
-          setIsRendering(false);
-        }
-      }
+      })();
+
+      inFlightPromises.set(pageIdx, promise);
+      return promise;
     };
 
-    void renderPdf();
+    renderPageRef.current = renderSinglePage;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const idx = Number((entry.target as HTMLElement).dataset.pageIndex);
+          if (!Number.isNaN(idx)) {
+            void renderSinglePage(idx);
+          }
+        }
+      },
+      { root: scrollRoot, rootMargin: "700px 0px" }
+    );
+    pageCards.forEach((card) => observer.observe(card));
+
+    // Ưu tiên cuộn tới đoạn đang chọn (hoặc đoạn đầu) và render ngay trang đó + 2 trang kề
+    const targetMatch = matches[activeIdxRef.current] ?? matches[initialIdx];
+    const targetPageIdx = targetMatch ? targetMatch.pageNumber - 1 : 0;
+
+    if (targetMatch && pageCards[targetPageIdx]) {
+      pageCards[targetPageIdx].scrollIntoView({ behavior: "auto", block: "center" });
+    }
+
+    void renderSinglePage(targetPageIdx).then(() => {
+      if (cancelled || !targetMatch) return;
+      const anchor = chunkAnchorsRef.current.get(targetMatch.chunkIdx);
+      anchor?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+
+    if (targetPageIdx > 0) void renderSinglePage(targetPageIdx - 1);
+    if (targetPageIdx + 1 < pages.length) void renderSinglePage(targetPageIdx + 1);
 
     return () => {
       cancelled = true;
-      for (const task of activeRenderTasks) {
+      renderPageRef.current = null;
+      observer.disconnect();
+      activeRenderTasks.forEach((task) => {
         try {
           task.cancel();
         } catch {
-          // ignore cancel errors on unmount
+          // ignore cancel errors on cleanup
         }
-      }
-      if (loadingTask) {
-        void loadingTask.destroy().catch(() => undefined);
-      }
+      });
+      activeRenderTasks.clear();
     };
-  }, [pdfBytes, scale, searchPhrases, focusedChunk?.pageNumber, onMatchedPagesChange]);
+  }, [prepared, scale]);
+
+  const numPages = prepared?.pages.length ?? 0;
+  const matchedPages = prepared?.matchedPages ?? [];
+  const matches = prepared?.matches ?? [];
+  const activeMatch = matches[activeIdx];
 
   return (
     <div className="flex h-full flex-col bg-[#F1F5F9]">
@@ -447,20 +443,53 @@ export function PdfHighlightViewer({
               Đánh dấu tại trang {matchedPages.join(", ")}
             </span>
           )}
+          {!isLoadingDoc && hitChunks.length > 0 && matches.length < hitChunks.length && (
+            <span className="text-[11px] text-[#94A3B8]">
+              (định vị được {matches.length}/{hitChunks.length} đoạn)
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5">
-          {matchedPages.length > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={scrollToFirstMatch}
-              className="h-7 gap-1 px-2 text-[11px]"
-            >
-              <Crosshair className="h-3 w-3" />
-              <span>Tới đoạn khớp</span>
-            </Button>
+          {matches.length > 0 && (
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => goToMatch(activeIdx - 1)}
+                disabled={matches.length < 2}
+                aria-label="Đoạn khớp trước"
+                className="h-7 w-7"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => scrollToMatch(activeMatch)}
+                title="Cuộn tới đoạn khớp đang chọn"
+                className="h-7 gap-1 px-2 text-[11px]"
+              >
+                <Crosshair className="h-3 w-3" />
+                <span>
+                  Đoạn {activeIdx + 1}/{matches.length}
+                  {activeMatch ? ` · Tr. ${activeMatch.pageNumber}` : ""}
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => goToMatch(activeIdx + 1)}
+                disabled={matches.length < 2}
+                aria-label="Đoạn khớp tiếp theo"
+                className="h-7 w-7"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           )}
           <Button
             type="button"
@@ -472,9 +501,7 @@ export function PdfHighlightViewer({
           >
             <ZoomOut className="h-3.5 w-3.5" />
           </Button>
-          <span className="min-w-11 text-center font-medium">
-            {Math.round(scale * 100)}%
-          </span>
+          <span className="min-w-11 text-center font-medium">{Math.round(scale * 100)}%</span>
           <Button
             type="button"
             variant="outline"
@@ -488,11 +515,11 @@ export function PdfHighlightViewer({
         </div>
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-auto px-4 py-5">
-        {isRendering && (
+      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto px-4 py-5">
+        {isLoadingDoc && (
           <div className="mb-4 flex items-center justify-center gap-2 text-xs text-[#64748B]">
             <Loader2 className="h-4 w-4 animate-spin text-[#2563EB]" />
-            <span>Đang dựng trang PDF gốc và đánh dấu đoạn trích...</span>
+            <span>Đang quét tài liệu PDF và định vị đoạn trích...</span>
           </div>
         )}
 
