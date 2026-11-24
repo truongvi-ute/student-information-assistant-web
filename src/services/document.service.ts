@@ -63,6 +63,20 @@ export const documentService = {
   },
 
   /**
+   * Admin tải tệp gốc của yêu cầu ADD đang chờ duyệt để kiểm tra nội dung (GET /api/document-requests/{requestId}/file).
+   */
+  async getReviewFile(
+    requestId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<BlobDownloadResult> {
+    options?.signal?.throwIfAborted();
+    return apiClient.getBlob(
+      `/document-requests/${encodeURIComponent(requestId)}/file`,
+      options
+    );
+  },
+
+  /**
    * Admin phê duyệt yêu cầu (POST /api/document-requests/{requestId}/approve).
    */
   async approveRequest(requestId: string): Promise<void> {
@@ -85,10 +99,12 @@ export const documentService = {
    * Lấy nội dung Markdown chuẩn hóa của tài liệu để xem trước và tô sáng (GET /api/documents/{documentId}/content).
    */
   async getDocumentContent(
-    documentId: string
+    documentId: string,
+    options?: { signal?: AbortSignal }
   ): Promise<DocumentContentResponse> {
     return apiClient.get<DocumentContentResponse>(
-      `/documents/${encodeURIComponent(documentId)}/content`
+      `/documents/${encodeURIComponent(documentId)}/content`,
+      options
     );
   },
 
@@ -96,7 +112,11 @@ export const documentService = {
    * Xem trước file gốc của tài liệu (inline) từ RustFS (GET /api/documents/{documentId}/preview).
    * Cache LRU nhẹ trong bộ nhớ để mở lại cùng tài liệu tức thì.
    */
-  async previewDocument(documentId: string): Promise<BlobDownloadResult> {
+  async previewDocument(
+    documentId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<BlobDownloadResult> {
+    options?.signal?.throwIfAborted();
     const cached = previewCache.get(documentId);
     if (cached) {
       previewCache.delete(documentId);
@@ -105,7 +125,8 @@ export const documentService = {
     }
 
     const result = await apiClient.getBlob(
-      `/documents/${encodeURIComponent(documentId)}/preview`
+      `/documents/${encodeURIComponent(documentId)}/preview`,
+      options
     );
 
     if (previewCache.size >= PREVIEW_CACHE_LIMIT) {
@@ -121,9 +142,13 @@ export const documentService = {
   /**
    * Tải file gốc của tài liệu từ RustFS (GET /api/documents/{documentId}/download).
    */
-  async downloadDocument(documentId: string): Promise<BlobDownloadResult> {
+  async downloadDocument(
+    documentId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<BlobDownloadResult> {
     return apiClient.getBlob(
-      `/documents/${encodeURIComponent(documentId)}/download`
+      `/documents/${encodeURIComponent(documentId)}/download`,
+      options
     );
   },
 };

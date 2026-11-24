@@ -1,20 +1,25 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   Upload,
   Search,
   Send,
-  Edit,
-  Trash2,
   ShieldAlert,
   CheckCircle2,
-  Clock,
-  XCircle,
   X,
   Loader2,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { DocumentUploadModal } from "@/components/documents/DocumentUploadModal";
+import {
+  DocumentLifecycleBadge,
+  DocumentProcessingBadge,
+  DocumentRequestStatusBadge,
+  DocumentRequestTypeBadge,
+  formatDateVi,
+  summarizeDocumentRequests,
+} from "@/components/documents/DocumentStatusBadges";
 import { documentService } from "@/services/document.service";
 import { ApiClientError } from "@/lib/api/api-error";
 import type {
@@ -27,6 +32,229 @@ import { formatFileSize } from "@/validations/document.validation";
 
 type AdvisorDocTab = "DOCUMENTS" | "REQUESTS";
 
+interface ConfirmAddState {
+  doc: DocumentItem;
+  previousRejectedRequest: DocumentRagRequestResponse | null;
+}
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  const selectors = [
+    "a[href]",
+    "button:not([disabled])",
+    "textarea:not([disabled])",
+    "input:not([disabled])",
+    "select:not([disabled])",
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(",");
+
+  return Array.from(container.querySelectorAll<HTMLElement>(selectors)).filter(
+    (el) => !el.hasAttribute("disabled") && el.getClientRects().length > 0
+  );
+}
+
+interface ConfirmAddRequestModalProps {
+  doc: DocumentItem;
+  previousRejectedRequest: DocumentRagRequestResponse | null;
+  isSubmitting: boolean;
+  errorMessage: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}
+
+function ConfirmAddRequestModal({
+  doc,
+  previousRejectedRequest,
+  isSubmitting,
+  errorMessage,
+  onClose,
+  onConfirm,
+}: ConfirmAddRequestModalProps) {
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const isResend = previousRejectedRequest !== null;
+
+  useEffect(() => {
+    const winDoc = window.document;
+    previousFocusRef.current = winDoc.activeElement as HTMLElement | null;
+    const prevOverflow = winDoc.body.style.overflow;
+    winDoc.body.style.overflow = "hidden";
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      closeButtonRef.current?.focus();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      winDoc.body.style.overflow = prevOverflow;
+      const prevEl = previousFocusRef.current;
+      if (prevEl && typeof prevEl.focus === "function") {
+        prevEl.focus();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (!isSubmitting) {
+          onClose();
+        }
+        return;
+      }
+
+      if (event.key === "Tab" && modalRef.current) {
+        const focusables = getFocusableElements(modalRef.current);
+        if (focusables.length === 0) {
+          event.preventDefault();
+          return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const activeEl = window.document.activeElement;
+
+        if (event.shiftKey) {
+          if (activeEl === first || !modalRef.current.contains(activeEl)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (activeEl === last || !modalRef.current.contains(activeEl)) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSubmitting, onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs"
+      onClick={() => {
+        if (!isSubmitting) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-add-request-title"
+    >
+      <div
+        ref={modalRef}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-xl"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3
+            id="confirm-add-request-title"
+            className="text-base font-semibold text-slate-900"
+          >
+            {isResend
+              ? "Gửi lại yêu cầu thêm tài liệu"
+              : "Gửi yêu cầu thêm tài liệu"}
+          </h3>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={() => {
+              if (!isSubmitting) onClose();
+            }}
+            disabled={isSubmitting}
+            aria-label="Đóng hộp thoại xác nhận"
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {errorMessage && (
+            <div
+              role="alert"
+              className="rounded border border-red-200 bg-red-50 p-2.5 text-xs text-red-600"
+            >
+              {errorMessage}
+            </div>
+          )}
+
+          {isResend && previousRejectedRequest && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+              <p className="font-semibold text-red-700">
+                Lý do từ chối lần trước
+                {previousRejectedRequest.reviewedAt
+                  ? ` (${formatDateVi(previousRejectedRequest.reviewedAt)})`
+                  : ""}
+              </p>
+              <p className="mt-1 whitespace-pre-wrap leading-relaxed">
+                {previousRejectedRequest.rejectionReason?.trim() ||
+                  "Không có ghi chú lý do."}
+              </p>
+            </div>
+          )}
+
+          <p className="text-xs text-slate-600">
+            {isResend
+              ? "Xác nhận gửi lại yêu cầu thêm tài liệu này để Quản trị viên xem xét lại."
+              : "Sau khi gửi, Quản trị viên sẽ kiểm tra tài liệu trước khi đưa vào xử lý cho Chatbot."}
+          </p>
+
+          <div className="space-y-1.5 rounded-md border border-slate-100 bg-slate-50/80 p-3 text-xs">
+            <div>
+              <span className="font-medium text-slate-500">Tên tài liệu: </span>
+              <span className="font-medium text-slate-900 break-words">
+                {doc.title}
+              </span>
+            </div>
+            <div>
+              <span className="font-medium text-slate-500">Tệp đính kèm: </span>
+              <span className="font-mono text-slate-700 break-all">
+                {doc.originalFilename} ({formatFileSize(doc.sizeBytes)})
+              </span>
+            </div>
+            <div>
+              <span className="font-medium text-slate-500">Quyền tải về: </span>
+              <span className="text-slate-700">
+                {doc.allowDownload
+                  ? "Cho phép sinh viên tải"
+                  : "Không cho phép tải"}
+              </span>
+            </div>
+            {doc.description && (
+              <div>
+                <span className="font-medium text-slate-500">Mô tả: </span>
+                <span className="text-slate-700 break-words">
+                  {doc.description}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            <span>{isResend ? "Xác nhận gửi lại" : "Xác nhận gửi"}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdvisorDocumentsView() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<AdvisorDocTab>("DOCUMENTS");
@@ -36,6 +264,7 @@ export function AdvisorDocumentsView() {
   const [documentsError, setDocumentsError] = useState<string | null>(null);
   const [isRequestsLoading, setIsRequestsLoading] = useState(true);
   const [requestsError, setRequestsError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [lifecycleFilter, setLifecycleFilter] = useState<
@@ -48,12 +277,12 @@ export function AdvisorDocumentsView() {
     type: "success" | "error";
   } | null>(null);
 
-  // Modal xác nhận gửi yêu cầu ADD
-  const [confirmingAddDoc, setConfirmingAddDoc] = useState<DocumentItem | null>(
+  const [confirmingAdd, setConfirmingAdd] = useState<ConfirmAddState | null>(
     null
   );
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
   const [addModalError, setAddModalError] = useState<string | null>(null);
+  const submittingAddRef = useRef(false);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -88,6 +317,16 @@ export function AdvisorDocumentsView() {
       setIsRequestsLoading(false);
     }
   }, []);
+
+  const handleRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([fetchDocuments(), fetchRequests()]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [fetchDocuments, fetchRequests, isRefreshing]);
 
   useEffect(() => {
     let isMounted = true;
@@ -135,6 +374,14 @@ export function AdvisorDocumentsView() {
     };
   }, []);
 
+  const documentMap = useMemo(() => {
+    const map = new Map<string, DocumentItem>();
+    for (const doc of documents) {
+      map.set(doc.documentId, doc);
+    }
+    return map;
+  }, [documents]);
+
   const filteredDocuments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return documents.filter((doc) => {
@@ -162,22 +409,35 @@ export function AdvisorDocumentsView() {
     );
   }
 
-  const hasPendingRequest = (documentId: string) =>
-    requests.some(
-      (r) => r.documentId === documentId && r.status === "PENDING"
-    );
+  const isOwnedByCurrentAdvisor = (doc: DocumentItem): boolean => {
+    if (!user) return false;
+    const currentUserId =
+      user.id !== undefined && user.id !== null
+        ? String(user.id).trim().toLowerCase()
+        : "";
+    const uploaderId = doc.uploadedById?.trim().toLowerCase() ?? "";
 
-  const hasApprovedAddRequest = (documentId: string) =>
-    requests.some(
-      (r) =>
-        r.documentId === documentId &&
-        r.requestType === "ADD" &&
-        r.status === "APPROVED"
+    if (currentUserId && uploaderId) {
+      return currentUserId === uploaderId;
+    }
+    if (uploaderId && !currentUserId) {
+      return false;
+    }
+
+    const currentUserEmail = user.email?.trim().toLowerCase() ?? "";
+    const uploaderEmail = doc.uploadedByEmail?.trim().toLowerCase() ?? "";
+    return Boolean(
+      currentUserEmail && uploaderEmail && currentUserEmail === uploaderEmail
     );
+  };
 
   const handleUploadSuccess = (uploaded: DocumentUploadResponse) => {
     const newDoc: DocumentItem = {
       ...uploaded,
+      uploadedById:
+        user?.id !== undefined && user?.id !== null && String(user.id).trim()
+          ? String(user.id)
+          : null,
       uploadedByName: user?.fullName || user?.email || "Cố vấn",
       uploadedByEmail: user?.email,
     };
@@ -189,41 +449,46 @@ export function AdvisorDocumentsView() {
   };
 
   const handleConfirmSendAddRequest = async () => {
-    if (!confirmingAddDoc || isSubmittingAdd) return;
+    if (!confirmingAdd || submittingAddRef.current) return;
 
-    const isOwner = Boolean(
-      user?.email &&
-        confirmingAddDoc.uploadedByEmail &&
-        confirmingAddDoc.uploadedByEmail.trim().toLowerCase() ===
-          user.email.trim().toLowerCase()
-    );
+    const targetDoc = confirmingAdd.doc;
+    const isResend = confirmingAdd.previousRejectedRequest !== null;
+
+    const isOwner = isOwnedByCurrentAdvisor(targetDoc);
 
     if (!isOwner) {
       setAddModalError(
-        !confirmingAddDoc.uploadedByEmail
+        !targetDoc.uploadedById && !targetDoc.uploadedByEmail
           ? "Thiếu thông tin người tải lên, không thể gửi yêu cầu."
           : "Bạn chỉ có thể gửi yêu cầu cho tài liệu do chính mình tải lên."
       );
       return;
     }
 
+    submittingAddRef.current = true;
+    setIsSubmittingAdd(true);
+    setAddModalError(null);
+
     try {
-      setIsSubmittingAdd(true);
-      setAddModalError(null);
-      await documentService.createAddRequest(confirmingAddDoc.documentId);
-      const docTitle = confirmingAddDoc.title;
-      setConfirmingAddDoc(null);
+      await documentService.createAddRequest(targetDoc.documentId);
+      const docTitle = targetDoc.title;
+      setConfirmingAdd(null);
       setBannerMessage({
-        text: `Đã gửi yêu cầu thêm tài liệu "${docTitle}" thành công. Vui lòng chờ Quản trị viên xét duyệt.`,
+        text: isResend
+          ? `Đã gửi lại yêu cầu thêm tài liệu "${docTitle}". Vui lòng chờ Quản trị viên xét duyệt.`
+          : `Đã gửi yêu cầu thêm tài liệu "${docTitle}" thành công. Vui lòng chờ Quản trị viên xét duyệt.`,
         type: "success",
       });
       await Promise.all([fetchRequests(), fetchDocuments()]);
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         if (err.status === 409) {
-          setAddModalError(
-            "Tài liệu này đã có yêu cầu đang chờ duyệt hoặc đã được phê duyệt."
-          );
+          setConfirmingAdd(null);
+          setBannerMessage({
+            text: "Trạng thái yêu cầu của tài liệu đã thay đổi hoặc đã được xử lý. Đã làm mới dữ liệu.",
+            type: "error",
+          });
+          await Promise.all([fetchRequests(), fetchDocuments()]);
         } else if (err.status === 403) {
           setAddModalError(
             "Bạn chỉ có thể gửi yêu cầu cho tài liệu do chính mình tải lên."
@@ -243,31 +508,92 @@ export function AdvisorDocumentsView() {
         );
       }
     } finally {
+      submittingAddRef.current = false;
       setIsSubmittingAdd(false);
     }
   };
 
-  const renderStatusBadge = (status: DocumentLifecycleStatus) => {
-    switch (status) {
-      case "ACTIVE":
-        return (
-          <span className="inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 whitespace-nowrap">
-            Hoạt động
-          </span>
-        );
-      case "DRAFT":
-        return (
-          <span className="inline-flex items-center rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 whitespace-nowrap">
-            Bản nháp
-          </span>
-        );
-      case "ARCHIVED":
-        return (
-          <span className="inline-flex items-center rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600 whitespace-nowrap">
-            Lưu trữ
-          </span>
-        );
+  const renderRequestCell = (doc: DocumentItem) => {
+    if (isRequestsLoading) {
+      return <span className="text-[11px] text-slate-500">Đang kiểm tra...</span>;
     }
+
+    if (requestsError) {
+      return (
+        <span className="text-[11px] text-red-600">Không rõ trạng thái</span>
+      );
+    }
+
+    const summary = summarizeDocumentRequests(requests, doc.documentId);
+    const displayReq = summary.displayRequest;
+
+    if (!displayReq) {
+      return (
+        <span className="inline-flex items-center rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600 whitespace-nowrap">
+          Chưa gửi
+        </span>
+      );
+    }
+
+    const isReadyForChatbot =
+      doc.lifecycleStatus === "ACTIVE" && doc.ragStatus === "READY";
+
+    return (
+      <div className="space-y-1">
+        <DocumentRequestStatusBadge status={displayReq.status} />
+        {displayReq.status === "APPROVED" && !isReadyForChatbot && (
+          <p className="text-[11px] text-slate-500">
+            {doc.ragStatus === "FAILED"
+              ? "Xử lý RAG thất bại"
+              : "Chưa sẵn sàng cho Chatbot"}
+          </p>
+        )}
+        {displayReq.status === "REJECTED" && displayReq.rejectionReason && (
+          <p className="max-w-xs rounded border border-red-100 bg-red-50/80 p-1.5 text-[11px] text-red-600 break-words">
+            Lý do: {displayReq.rejectionReason}
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  const renderSubmitAddAction = (doc: DocumentItem, fullWidth = false) => {
+    const summary = summarizeDocumentRequests(requests, doc.documentId);
+    const isOwner = isOwnedByCurrentAdvisor(doc);
+
+    const canSubmitAdd =
+      isOwner &&
+      !isRequestsLoading &&
+      !requestsError &&
+      doc.lifecycleStatus === "DRAFT" &&
+      doc.ragStatus === "NOT_INDEXED" &&
+      !summary.hasPendingRequest &&
+      !summary.hasApprovedAddRequest;
+
+    if (!canSubmitAdd) {
+      return fullWidth ? null : <span className="text-xs text-slate-400">—</span>;
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setAddModalError(null);
+          setConfirmingAdd({
+            doc,
+            previousRejectedRequest: summary.latestRejectedAddRequest,
+          });
+        }}
+        className={`inline-flex items-center justify-center gap-1.5 rounded bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 ${
+          fullWidth ? "w-full" : ""
+        }`}
+      >
+        <Send className="h-3 w-3" />
+        <span>
+          {summary.latestRejectedAddRequest ? "Gửi lại duyệt" : "Gửi duyệt"}
+        </span>
+      </button>
+    );
   };
 
   return (
@@ -280,26 +606,40 @@ export function AdvisorDocumentsView() {
               Quản lý tài liệu
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              Quản lý tài liệu hướng dẫn và gửi yêu cầu phê duyệt để đưa vào kho dữ liệu tư vấn.
+              Tải lên tài liệu nháp (.pdf, .docx) và gửi yêu cầu thêm vào nguồn tri thức Chatbot.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setBannerMessage(null);
-              setIsUploadModalOpen(true);
-            }}
-            className="inline-flex items-center justify-center gap-1.5 rounded bg-blue-600 px-3.5 py-2 text-xs font-medium text-white shadow-xs transition-colors hover:bg-blue-700"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            <span>Tải lên tài liệu</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={isRefreshing || isDocumentsLoading || isRequestsLoading}
+              onClick={() => void handleRefresh()}
+              className="inline-flex items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 disabled:opacity-50"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+              />
+              <span>Làm mới</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBannerMessage(null);
+                setIsUploadModalOpen(true);
+              }}
+              className="inline-flex items-center justify-center gap-1.5 rounded bg-blue-600 px-3.5 py-2 text-xs font-medium text-white shadow-xs transition-colors hover:bg-blue-700"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              <span>Tải lên tài liệu</span>
+            </button>
+          </div>
         </div>
 
         {/* Thông báo kết quả */}
         {bannerMessage && (
           <div
-            className={`flex items-center justify-between rounded border px-3.5 py-2 text-xs ${
+            role={bannerMessage.type === "error" ? "alert" : "status"}
+            className={`flex items-center justify-between gap-2 rounded border px-3.5 py-2 text-xs ${
               bannerMessage.type === "success"
                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                 : "border-red-200 bg-red-50 text-red-700"
@@ -316,9 +656,29 @@ export function AdvisorDocumentsView() {
             <button
               type="button"
               onClick={() => setBannerMessage(null)}
+              aria-label="Đóng thông báo"
               className="text-slate-400 hover:text-slate-600"
             >
               <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Cảnh báo lỗi tải yêu cầu khi đang ở Tab 1 */}
+        {activeTab === "DOCUMENTS" && requestsError && !isRequestsLoading && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-2 rounded border border-red-200 bg-red-50 px-3.5 py-2 text-xs text-red-700"
+          >
+            <span>
+              Không thể tải danh sách yêu cầu ({requestsError}). Tạm khóa thao tác gửi duyệt để tránh trùng lặp.
+            </span>
+            <button
+              type="button"
+              onClick={() => void fetchRequests()}
+              className="font-medium text-blue-600 hover:underline"
+            >
+              Thử lại
             </button>
           </div>
         )}
@@ -365,6 +725,7 @@ export function AdvisorDocumentsView() {
               </div>
 
               <select
+                aria-label="Lọc theo vòng đời tài liệu"
                 value={lifecycleFilter}
                 onChange={(e) =>
                   setLifecycleFilter(
@@ -373,84 +734,127 @@ export function AdvisorDocumentsView() {
                 }
                 className="rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-500 focus:outline-none"
               >
-                <option value="ALL">Tất cả trạng thái</option>
+                <option value="ALL">Tất cả vòng đời</option>
                 <option value="DRAFT">Bản nháp</option>
                 <option value="ACTIVE">Hoạt động</option>
                 <option value="ARCHIVED">Lưu trữ</option>
               </select>
             </div>
 
-            {/* Bảng dữ liệu */}
-            <div className="overflow-hidden rounded border border-slate-200 bg-white">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-slate-100 bg-slate-50 font-medium text-slate-500 uppercase tracking-wider">
-                    <tr>
-                      <th className="px-4 py-3">Tài liệu</th>
-                      <th className="px-4 py-3 whitespace-nowrap">Tệp đính kèm</th>
-                      <th className="px-4 py-3 whitespace-nowrap">Quyền tải</th>
-                      <th className="px-4 py-3 whitespace-nowrap">Trạng thái</th>
-                      <th className="px-4 py-3 whitespace-nowrap">Ngày tạo</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {isDocumentsLoading ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                          <div className="inline-flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                            <span>Đang tải danh sách tài liệu...</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : documentsError ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-red-500">
-                          <p>{documentsError}</p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsDocumentsLoading(true);
-                              void fetchDocuments();
-                            }}
-                            className="mt-2 text-xs font-medium text-blue-600 hover:underline"
-                          >
-                            Thử lại
-                          </button>
-                        </td>
-                      </tr>
-                    ) : filteredDocuments.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="px-4 py-8 text-center text-slate-400"
-                        >
-                          Chưa có tài liệu nào. Nhấn &quot;Tải lên tài liệu&quot; để thêm tệp mới.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredDocuments.map((doc) => {
-                        const isPending = hasPendingRequest(doc.documentId);
-                        const isApprovedAdd = hasApprovedAddRequest(doc.documentId);
-                        const isOwner = Boolean(
-                          user?.email &&
-                            doc.uploadedByEmail &&
-                            doc.uploadedByEmail.trim().toLowerCase() ===
-                              user.email.trim().toLowerCase()
-                        );
+            {isDocumentsLoading ? (
+              <div className="rounded border border-slate-200 bg-white px-4 py-8 text-center text-xs text-slate-500">
+                <div className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                  <span>Đang tải danh sách tài liệu...</span>
+                </div>
+              </div>
+            ) : documentsError ? (
+              <div className="rounded border border-red-200 bg-red-50 px-4 py-6 text-center text-xs text-red-600">
+                <p>{documentsError}</p>
+                <button
+                  type="button"
+                  onClick={() => void fetchDocuments()}
+                  className="mt-2 text-xs font-medium text-blue-600 hover:underline"
+                >
+                  Thử lại
+                </button>
+              </div>
+            ) : filteredDocuments.length === 0 ? (
+              <div className="rounded border border-slate-200 bg-white px-4 py-8 text-center text-xs text-slate-500">
+                {documents.length === 0
+                  ? 'Chưa có tài liệu nào. Nhấn "Tải lên tài liệu" để thêm tệp mới.'
+                  : "Không tìm thấy tài liệu phù hợp."}
+              </div>
+            ) : (
+              <>
+                {/* Mobile Card List */}
+                <div className="space-y-3 md:hidden">
+                  {filteredDocuments.map((doc) => {
+                    const actionNode = renderSubmitAddAction(doc, true);
+                    return (
+                      <div
+                        key={doc.documentId}
+                        className="space-y-3 rounded border border-slate-200 bg-white p-4"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-slate-900 break-words">
+                            {doc.title}
+                          </p>
+                          {doc.description && (
+                            <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
+                              {doc.description}
+                            </p>
+                          )}
+                          <p className="mt-1 font-mono text-[11px] text-slate-600 break-all">
+                            {doc.originalFilename} · {formatFileSize(doc.sizeBytes)}
+                          </p>
+                        </div>
 
-                        return (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <DocumentLifecycleBadge status={doc.lifecycleStatus} />
+                          <DocumentProcessingBadge
+                            lifecycleStatus={doc.lifecycleStatus}
+                            ragStatus={doc.ragStatus}
+                          />
+                          <span className="inline-flex rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
+                            {doc.allowDownload
+                              ? "Cho phép tải"
+                              : "Không tải"}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1 border-t border-slate-100 pt-2.5 text-xs">
+                          <div className="flex items-center justify-between gap-2 text-slate-500">
+                            <span>Yêu cầu gần nhất:</span>
+                            <span className="text-[11px]">
+                              {formatDateVi(doc.createdAt)}
+                            </span>
+                          </div>
+                          <div>{renderRequestCell(doc)}</div>
+                        </div>
+
+                        {actionNode}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop Table */}
+                <div className="hidden overflow-hidden rounded border border-slate-200 bg-white md:block">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b border-slate-100 bg-slate-50 font-medium uppercase tracking-wider text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3">Tài liệu</th>
+                          <th className="px-4 py-3 whitespace-nowrap">
+                            Tệp đính kèm
+                          </th>
+                          <th className="px-4 py-3 whitespace-nowrap">
+                            Trạng thái xử lý
+                          </th>
+                          <th className="px-4 py-3 whitespace-nowrap">
+                            Yêu cầu gần nhất
+                          </th>
+                          <th className="px-4 py-3 whitespace-nowrap">
+                            Ngày tạo
+                          </th>
+                          <th className="px-4 py-3 text-right whitespace-nowrap">
+                            Thao tác
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredDocuments.map((doc) => (
                           <tr
                             key={doc.documentId}
-                            className="hover:bg-slate-50/70 transition-colors"
+                            className="transition-colors hover:bg-slate-50/70"
                           >
                             <td className="px-4 py-3">
                               <p className="font-medium text-slate-900">
                                 {doc.title}
                               </p>
                               {doc.description && (
-                                <p className="mt-0.5 line-clamp-1 text-slate-500 text-[11px]">
+                                <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">
                                   {doc.description}
                                 </p>
                               )}
@@ -465,242 +869,206 @@ export function AdvisorDocumentsView() {
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <p
-                                className="font-mono text-[11px] text-slate-700 max-w-[200px] truncate"
+                                className="max-w-[200px] truncate font-mono text-[11px] text-slate-700"
                                 title={doc.originalFilename}
                               >
                                 {doc.originalFilename}
                               </p>
-                              <span className="text-[11px] text-slate-400">
-                                {formatFileSize(doc.sizeBytes)}
-                              </span>
+                              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400">
+                                <span>{formatFileSize(doc.sizeBytes)}</span>
+                                <span>·</span>
+                                <span>
+                                  {doc.allowDownload
+                                    ? "Cho phép tải"
+                                    : "Không tải"}
+                                </span>
+                              </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              <span
-                                className={`inline-flex rounded px-2 py-0.5 text-[11px] font-medium border ${
-                                  doc.allowDownload
-                                    ? "bg-slate-50 text-slate-700 border-slate-200"
-                                    : "bg-slate-50 text-slate-400 border-slate-100"
-                                }`}
-                              >
-                                {doc.allowDownload ? "Cho phép tải" : "Không tải"}
-                              </span>
+                              <div className="flex flex-col items-start gap-1">
+                                <DocumentLifecycleBadge
+                                  status={doc.lifecycleStatus}
+                                />
+                                <DocumentProcessingBadge
+                                  lifecycleStatus={doc.lifecycleStatus}
+                                  ragStatus={doc.ragStatus}
+                                />
+                              </div>
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              {renderStatusBadge(doc.lifecycleStatus)}
+                            <td className="px-4 py-3">
+                              {renderRequestCell(doc)}
                             </td>
                             <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                              {new Date(doc.createdAt).toLocaleDateString("vi-VN")}
+                              {formatDateVi(doc.createdAt)}
                             </td>
                             <td className="px-4 py-3 text-right whitespace-nowrap">
-                              {isPending ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
-                                  <Clock className="h-3 w-3" />
-                                  Chờ duyệt
-                                </span>
-                              ) : isApprovedAdd ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  Đã duyệt
-                                </span>
-                              ) : doc.lifecycleStatus === "DRAFT" ? (
-                                <div className="inline-flex items-center justify-end gap-1.5">
-                                  <button
-                                    type="button"
-                                    disabled
-                                    title="Chức năng chỉnh sửa thông tin đang được phát triển"
-                                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-400 cursor-not-allowed"
-                                  >
-                                    <Edit className="h-3 w-3 text-slate-400" />
-                                    <span>Sửa</span>
-                                  </button>
-                                  {isOwner ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setAddModalError(null);
-                                        setConfirmingAddDoc(doc);
-                                      }}
-                                      className="inline-flex items-center gap-1 rounded bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
-                                    >
-                                      <Send className="h-3 w-3" />
-                                      <span>Gửi duyệt</span>
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      disabled
-                                      title={
-                                        !doc.uploadedByEmail
-                                          ? "Thiếu thông tin người tải lên, không thể gửi yêu cầu"
-                                          : "Chỉ người tải lên tài liệu mới có quyền gửi yêu cầu xét duyệt"
-                                      }
-                                      className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-400 cursor-not-allowed"
-                                    >
-                                      <Send className="h-3 w-3 text-slate-400" />
-                                      <span>Gửi duyệt</span>
-                                    </button>
-                                  )}
-                                </div>
-                              ) : doc.lifecycleStatus === "ACTIVE" ? (
-                                <div className="inline-flex items-center justify-end gap-1.5">
-                                  <button
-                                    type="button"
-                                    disabled
-                                    title="Chức năng gửi yêu cầu cập nhật đang được phát triển"
-                                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-400 cursor-not-allowed"
-                                  >
-                                    <Edit className="h-3 w-3 text-slate-400" />
-                                    <span>Yêu cầu sửa</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled
-                                    title="Chức năng gửi yêu cầu ngừng sử dụng đang được phát triển"
-                                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-400 cursor-not-allowed"
-                                  >
-                                    <Trash2 className="h-3 w-3 text-slate-400" />
-                                    <span>Ngừng dùng</span>
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 text-xs">
-                                  Đã lưu trữ
-                                </span>
-                              )}
+                              {renderSubmitAddAction(doc)}
                             </td>
                           </tr>
-                        );
-                      })
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        ) : isRequestsLoading ? (
+          <div className="rounded border border-slate-200 bg-white px-4 py-8 text-center text-xs text-slate-500">
+            <div className="inline-flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+              <span>Đang tải danh sách yêu cầu...</span>
+            </div>
+          </div>
+        ) : requestsError ? (
+          <div className="rounded border border-red-200 bg-red-50 px-4 py-6 text-center text-xs text-red-600">
+            <p>{requestsError}</p>
+            <button
+              type="button"
+              onClick={() => void fetchRequests()}
+              className="mt-2 text-xs font-medium text-blue-600 hover:underline"
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : requests.length === 0 ? (
+          <div className="rounded border border-slate-200 bg-white px-4 py-8 text-center text-xs text-slate-500">
+            Chưa có yêu cầu nào được gửi.
+          </div>
+        ) : (
+          <>
+            {/* Mobile Card List */}
+            <div className="space-y-3 md:hidden">
+              {requests.map((req) => {
+                const doc = documentMap.get(req.documentId);
+                return (
+                  <div
+                    key={req.id}
+                    className="space-y-2.5 rounded border border-slate-200 bg-white p-4"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900 break-words">
+                          {req.documentTitle}
+                        </p>
+                        {doc && (
+                          <p className="mt-0.5 font-mono text-[11px] text-slate-500 break-all">
+                            {doc.originalFilename}
+                          </p>
+                        )}
+                      </div>
+                      <DocumentRequestTypeBadge type={req.requestType} />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <DocumentRequestStatusBadge status={req.status} />
+                      {doc && (
+                        <DocumentProcessingBadge
+                          lifecycleStatus={doc.lifecycleStatus}
+                          ragStatus={doc.ragStatus}
+                        />
+                      )}
+                    </div>
+
+                    {req.status === "REJECTED" && req.rejectionReason && (
+                      <p className="rounded border border-red-100 bg-red-50/80 p-2 text-[11px] text-red-600 break-words">
+                        Lý do: {req.rejectionReason}
+                      </p>
                     )}
+
+                    <div className="flex flex-wrap justify-between gap-2 border-t border-slate-100 pt-2 text-[11px] text-slate-500">
+                      <span>Ngày gửi: {formatDateVi(req.createdAt)}</span>
+                      <span>
+                        Xét duyệt:{" "}
+                        {req.reviewedAt ? formatDateVi(req.reviewedAt) : "—"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden overflow-hidden rounded border border-slate-200 bg-white md:block">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-100 bg-slate-50 font-medium uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 whitespace-nowrap">
+                        Loại yêu cầu
+                      </th>
+                      <th className="px-4 py-3">Tài liệu</th>
+                      <th className="px-4 py-3 whitespace-nowrap">
+                        Trạng thái yêu cầu
+                      </th>
+                      <th className="px-4 py-3 whitespace-nowrap">
+                        Trạng thái tài liệu
+                      </th>
+                      <th className="px-4 py-3 whitespace-nowrap">Ngày gửi</th>
+                      <th className="px-4 py-3 whitespace-nowrap">
+                        Ngày xét duyệt
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {requests.map((req) => {
+                      const doc = documentMap.get(req.documentId);
+
+                      return (
+                        <tr
+                          key={req.id}
+                          className="transition-colors hover:bg-slate-50/70"
+                        >
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <DocumentRequestTypeBadge type={req.requestType} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-slate-900">
+                              {req.documentTitle}
+                            </p>
+                            {doc && (
+                              <p className="mt-0.5 font-mono text-[11px] text-slate-500">
+                                {doc.originalFilename}
+                              </p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="space-y-1">
+                              <DocumentRequestStatusBadge status={req.status} />
+                              {req.status === "REJECTED" &&
+                                req.rejectionReason && (
+                                  <p className="max-w-xs rounded border border-red-100 bg-red-50/80 p-1.5 text-[11px] text-red-600 break-words">
+                                    Lý do: {req.rejectionReason}
+                                  </p>
+                                )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {doc ? (
+                              <DocumentProcessingBadge
+                                lifecycleStatus={doc.lifecycleStatus}
+                                ragStatus={doc.ragStatus}
+                              />
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                            {formatDateVi(req.createdAt)}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                            {req.reviewedAt
+                              ? formatDateVi(req.reviewedAt)
+                              : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
           </>
-        ) : (
-          /* Tab 2: Yêu cầu đã gửi */
-          <div className="overflow-hidden rounded border border-slate-200 bg-white">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-slate-100 bg-slate-50 font-medium text-slate-500 uppercase tracking-wider">
-                  <tr>
-                    <th className="px-4 py-3 whitespace-nowrap">Mã yêu cầu</th>
-                    <th className="px-4 py-3 whitespace-nowrap">Loại yêu cầu</th>
-                    <th className="px-4 py-3">Tài liệu</th>
-                    <th className="px-4 py-3 whitespace-nowrap">Trạng thái</th>
-                    <th className="px-4 py-3 whitespace-nowrap">Ngày gửi</th>
-                    <th className="px-4 py-3 whitespace-nowrap">Ngày xét duyệt</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {isRequestsLoading ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                        <div className="inline-flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                          <span>Đang tải danh sách yêu cầu...</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : requestsError ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-red-500">
-                        <p>{requestsError}</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsRequestsLoading(true);
-                            void fetchRequests();
-                          }}
-                          className="mt-2 text-xs font-medium text-blue-600 hover:underline"
-                        >
-                          Thử lại
-                        </button>
-                      </td>
-                    </tr>
-                  ) : requests.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-4 py-8 text-center text-slate-400"
-                      >
-                        Chưa có yêu cầu nào được gửi.
-                      </td>
-                    </tr>
-                  ) : (
-                    requests.map((req) => (
-                      <tr
-                        key={req.id}
-                        className="hover:bg-slate-50/70 transition-colors"
-                      >
-                        <td
-                          className="px-4 py-3 font-mono text-slate-600 whitespace-nowrap"
-                          title={req.id}
-                        >
-                          {req.id.slice(0, 8)}...
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={`rounded px-2 py-0.5 text-[11px] font-medium border ${
-                              req.requestType === "ADD"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : req.requestType === "UPDATE"
-                                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                                  : "bg-red-50 text-red-700 border-red-200"
-                            }`}
-                          >
-                            {req.requestType === "ADD"
-                              ? "Thêm mới"
-                              : req.requestType === "UPDATE"
-                                ? "Cập nhật"
-                                : "Ngừng dùng"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900">
-                            {req.documentTitle}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {req.status === "PENDING" ? (
-                            <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200">
-                              <Clock className="h-3 w-3" />
-                              Chờ duyệt
-                            </span>
-                          ) : req.status === "APPROVED" ? (
-                            <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Đã duyệt
-                            </span>
-                          ) : (
-                            <div>
-                              <span className="inline-flex items-center gap-1 rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 border border-red-200">
-                                <XCircle className="h-3 w-3" />
-                                Từ chối
-                              </span>
-                              {req.rejectionReason && (
-                                <p className="mt-1 text-[11px] text-red-600 bg-red-50/80 p-1.5 rounded border border-red-100 max-w-xs">
-                                  Lý do: {req.rejectionReason}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                          {new Date(req.createdAt).toLocaleDateString("vi-VN")}
-                        </td>
-                        <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                          {req.reviewedAt
-                            ? new Date(req.reviewedAt).toLocaleDateString("vi-VN")
-                            : "—"}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
         )}
       </div>
 
@@ -711,95 +1079,22 @@ export function AdvisorDocumentsView() {
         onUploadSuccess={handleUploadSuccess}
       />
 
-      {/* Modal Xác nhận Gửi yêu cầu Thêm mới */}
-      {confirmingAddDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-semibold text-slate-900">
-                Gửi yêu cầu thêm tài liệu
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  if (isSubmittingAdd) return;
-                  setConfirmingAddDoc(null);
-                }}
-                disabled={isSubmittingAdd}
-                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {addModalError && (
-                <div className="rounded border border-red-200 bg-red-50 p-2.5 text-xs text-red-600">
-                  {addModalError}
-                </div>
-              )}
-
-              <p className="text-xs text-slate-600">
-                Bạn có chắc chắn muốn gửi yêu cầu phê duyệt cho tài liệu này không?
-                Sau khi gửi, Quản trị viên sẽ xem xét để đưa tài liệu vào nguồn tri thức của hệ thống.
-              </p>
-
-              <div className="rounded-md border border-slate-100 bg-slate-50/80 p-3 space-y-1.5 text-xs">
-                <div>
-                  <span className="font-medium text-slate-500">Tên tài liệu: </span>
-                  <span className="font-medium text-slate-900">
-                    {confirmingAddDoc.title}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium text-slate-500">Tệp đính kèm: </span>
-                  <span className="font-mono text-slate-700">
-                    {confirmingAddDoc.originalFilename} (
-                    {formatFileSize(confirmingAddDoc.sizeBytes)})
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium text-slate-500">Quyền tải về: </span>
-                  <span className="text-slate-700">
-                    {confirmingAddDoc.allowDownload
-                      ? "Cho phép sinh viên tải"
-                      : "Không tải về"}
-                  </span>
-                </div>
-                {confirmingAddDoc.description && (
-                  <div>
-                    <span className="font-medium text-slate-500">Mô tả: </span>
-                    <span className="text-slate-700">
-                      {confirmingAddDoc.description}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 mt-4">
-              <button
-                type="button"
-                onClick={() => setConfirmingAddDoc(null)}
-                disabled={isSubmittingAdd}
-                className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmSendAddRequest}
-                disabled={isSubmittingAdd}
-                className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {isSubmittingAdd && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                )}
-                <span>Xác nhận gửi</span>
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Modal Xác nhận Gửi / Gửi lại yêu cầu Thêm mới */}
+      {confirmingAdd && (
+        <ConfirmAddRequestModal
+          key={confirmingAdd.doc.documentId}
+          doc={confirmingAdd.doc}
+          previousRejectedRequest={confirmingAdd.previousRejectedRequest}
+          isSubmitting={isSubmittingAdd}
+          errorMessage={addModalError}
+          onClose={() => {
+            if (!isSubmittingAdd) {
+              setConfirmingAdd(null);
+              setAddModalError(null);
+            }
+          }}
+          onConfirm={() => void handleConfirmSendAddRequest()}
+        />
       )}
     </>
   );

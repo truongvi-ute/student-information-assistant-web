@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Crosshair, Loader2, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, Crosshair, Loader2, RefreshCw, ZoomIn, ZoomOut } from "lucide-react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { Button } from "@/components/ui/button";
 import type { AiCitationResponse } from "@/types/chatbot";
@@ -21,6 +21,8 @@ interface PdfHighlightViewerProps {
   hitChunks: AiCitationResponse[];
   focusedChunk?: AiCitationResponse | null;
   onMatchedPagesChange?: (pages: number[]) => void;
+  onRenderStateChange?: (state: { isRendering: boolean; renderError: string | null }) => void;
+  onRetry?: () => void;
 }
 
 interface ChunkMatch {
@@ -51,6 +53,8 @@ export function PdfHighlightViewer({
   hitChunks,
   focusedChunk,
   onMatchedPagesChange,
+  onRenderStateChange,
+  onRetry,
 }: PdfHighlightViewerProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -62,7 +66,7 @@ export function PdfHighlightViewer({
   const renderPageRef = useRef<((pageIdx: number) => Promise<void>) | null>(null);
   const activeIdxRef = useRef(0);
 
-  const [scale, setScale] = useState(1.15);
+  const [scale, setScale] = useState(() => typeof window !== "undefined" && window.innerWidth < 640 ? 0.55 : 1.15);
   const [prepared, setPrepared] = useState<PdfPreparedData | null>(null);
   const [activeIdx, setActiveIdx] = useState(0);
   const [isLoadingDoc, setIsLoadingDoc] = useState(true);
@@ -120,6 +124,7 @@ export function PdfHighlightViewer({
 
     const prepareDocument = async () => {
       try {
+        onRenderStateChange?.({ isRendering: true, renderError: null });
         setIsLoadingDoc(true);
         setRenderError(null);
         setPrepared(null);
@@ -232,6 +237,7 @@ export function PdfHighlightViewer({
         if (!cancelled) {
           const message =
             err instanceof Error ? err.message : "Không thể hiển thị file PDF gốc.";
+          onRenderStateChange?.({ isRendering: false, renderError: message });
           setRenderError(message);
           setIsLoadingDoc(false);
         }
@@ -246,7 +252,7 @@ export function PdfHighlightViewer({
         void loadingTask.destroy().catch(() => undefined);
       }
     };
-  }, [pdfBytes, hitChunks]);
+  }, [pdfBytes, hitChunks, onRenderStateChange]);
 
   // Pha 2: Tạo khung placeholder cho mọi trang, ưu tiên render trang khớp + lazy-render khi cuộn
   useEffect(() => {
@@ -256,6 +262,8 @@ export function PdfHighlightViewer({
     if (!host || !scrollRoot) return;
 
     let cancelled = false;
+    let pageFailed = false;
+    onRenderStateChange?.({ isRendering: true, renderError: null });
     const { pdfjs, pdfDoc, pages, chunksByPage, matches, initialIdx } = prepared;
     const outputScale = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -367,8 +375,12 @@ export function PdfHighlightViewer({
           }
 
           pageStates[pageIdx] = "rendered";
-        } catch {
+        } catch (error: unknown) {
           if (!cancelled) {
+            pageFailed = true;
+            const message = error instanceof Error ? error.message : "Không thể hiển thị trang PDF.";
+            setRenderError(message);
+            onRenderStateChange?.({ isRendering: false, renderError: message });
             pageStates[pageIdx] = "idle";
           }
         } finally {
@@ -413,6 +425,18 @@ export function PdfHighlightViewer({
     if (targetPageIdx > 0) void renderSinglePage(targetPageIdx - 1);
     if (targetPageIdx + 1 < pages.length) void renderSinglePage(targetPageIdx + 1);
 
+    if (onRenderStateChange) {
+      void (async () => {
+        for (let idx = 0; idx < pages.length; idx++) {
+          if (cancelled || pageFailed) return;
+          await renderSinglePage(idx);
+        }
+        if (!cancelled && !pageFailed) {
+          onRenderStateChange({ isRendering: false, renderError: null });
+        }
+      })();
+    }
+
     return () => {
       cancelled = true;
       renderPageRef.current = null;
@@ -426,7 +450,7 @@ export function PdfHighlightViewer({
       });
       activeRenderTasks.clear();
     };
-  }, [prepared, scale]);
+  }, [prepared, scale, onRenderStateChange]);
 
   const numPages = prepared?.pages.length ?? 0;
   const matchedPages = prepared?.matchedPages ?? [];
@@ -495,7 +519,7 @@ export function PdfHighlightViewer({
             type="button"
             variant="outline"
             size="icon"
-            onClick={() => setScale((s) => Math.max(0.7, Number((s - 0.15).toFixed(2))))}
+            onClick={() => setScale((s) => Math.max(0.5, Number((s - 0.15).toFixed(2))))}
             aria-label="Thu nhỏ"
             className="h-7 w-7"
           >
@@ -515,17 +539,23 @@ export function PdfHighlightViewer({
         </div>
       </div>
 
-      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto px-4 py-5">
+      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto px-2 py-4 sm:px-4 sm:py-5">
         {isLoadingDoc && (
           <div className="mb-4 flex items-center justify-center gap-2 text-xs text-[#64748B]">
             <Loader2 className="h-4 w-4 animate-spin text-[#2563EB]" />
-            <span>Đang quét tài liệu PDF và định vị đoạn trích...</span>
+            <span>{hitChunks.length > 0 ? "Đang quét tài liệu PDF và định vị đoạn trích..." : "Đang đọc tài liệu PDF..."}</span>
           </div>
         )}
 
         {renderError ? (
           <div className="mx-auto max-w-2xl rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-4 text-sm text-[#B91C1C]">
-            {renderError}
+            <p>{renderError}</p>
+            {onRetry && (
+              <Button type="button" variant="outline" size="sm" onClick={onRetry} className="mt-3 gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Thử lại
+              </Button>
+            )}
           </div>
         ) : (
           <div ref={containerRef} className="space-y-4 pb-6" />

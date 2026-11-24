@@ -50,6 +50,7 @@ export interface DocumentResponse {
   sizeBytes: number;
   lifecycleStatus: DocumentLifecycleStatus;
   ragStatus: DocumentRagStatus;
+  uploadedById?: string | null;
   uploadedByEmail?: string | null;
   uploadedByName?: string | null;
   archivedAt?: string | null;
