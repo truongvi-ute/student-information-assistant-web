@@ -8,6 +8,9 @@ import type {
   UploadDocumentPayload,
 } from "@/types/document";
 
+const PREVIEW_CACHE_LIMIT = 5;
+const previewCache = new Map<string, BlobDownloadResult>();
+
 export const documentService = {
   /**
    * Tải lên tài liệu đào tạo mới (POST /api/documents - multipart/form-data).
@@ -91,11 +94,28 @@ export const documentService = {
 
   /**
    * Xem trước file gốc của tài liệu (inline) từ RustFS (GET /api/documents/{documentId}/preview).
+   * Cache LRU nhẹ trong bộ nhớ để mở lại cùng tài liệu tức thì.
    */
   async previewDocument(documentId: string): Promise<BlobDownloadResult> {
-    return apiClient.getBlob(
+    const cached = previewCache.get(documentId);
+    if (cached) {
+      previewCache.delete(documentId);
+      previewCache.set(documentId, cached);
+      return cached;
+    }
+
+    const result = await apiClient.getBlob(
       `/documents/${encodeURIComponent(documentId)}/preview`
     );
+
+    if (previewCache.size >= PREVIEW_CACHE_LIMIT) {
+      const oldestKey = previewCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        previewCache.delete(oldestKey);
+      }
+    }
+    previewCache.set(documentId, result);
+    return result;
   },
 
   /**
