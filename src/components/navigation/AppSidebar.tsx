@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
 import { PanelLeftClose, PanelLeft, LogOut, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -12,6 +12,7 @@ import { getNavItemsByRole } from "./navigation.config";
 interface AppSidebarProps {
   children?: ReactNode;
   currentUser: UserProfile | null;
+  chatUnreadCount?: number;
   onLogout: () => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -21,6 +22,7 @@ interface AppSidebarProps {
 export function AppSidebar({
   children,
   currentUser,
+  chatUnreadCount = 0,
   onLogout,
   isCollapsed,
   onToggleCollapse,
@@ -29,7 +31,18 @@ export function AppSidebar({
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const role = currentUser?.role?.toUpperCase();
-  const navItems = getNavItemsByRole(role);
+  const navItems = useMemo(() => {
+    const baseItems = getNavItemsByRole(role);
+    if (!chatUnreadCount || chatUnreadCount <= 0) {
+      return baseItems;
+    }
+    const badgeText = chatUnreadCount > 99 ? "99+" : String(chatUnreadCount);
+    return baseItems.map((item) =>
+      item.href === ROUTES.PORTAL.CHAT
+        ? { ...item, badge: badgeText }
+        : item,
+    );
+  }, [chatUnreadCount, role]);
   const displayName = currentUser?.fullName || currentUser?.email || "Tài khoản";
   const displayRole = role === "ADMIN" ? "Quản trị viên" : role === "ADVISOR" ? "Tư vấn viên" : "Sinh viên";
   const homeHref = role === "ADMIN" ? ROUTES.ADMIN.DASHBOARD : role === "ADVISOR" ? ROUTES.ADVISOR.DASHBOARD : ROUTES.PUBLIC.CHATBOT;
