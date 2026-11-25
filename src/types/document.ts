@@ -70,9 +70,17 @@ export interface DocumentRagRequestResponse {
   id: string;
   documentId: string;
   documentTitle: string;
+  currentDescription?: string | null;
+  currentAllowDownload?: boolean;
+  documentLifecycleStatus?: DocumentLifecycleStatus;
+  documentRagStatus?: DocumentRagStatus;
   requestedByName: string;
+  reviewedByName?: string | null;
   requestType: DocumentRequestType;
   status: DocumentRequestStatus;
+  proposedTitle?: string | null;
+  proposedDescription?: string | null;
+  proposedAllowDownload?: boolean | null;
   rejectionReason: string | null;
   createdAt: string;
   reviewedAt: string | null;
@@ -82,6 +90,15 @@ export interface DocumentRagRequestResponse {
  * Alias tương thích ngược cho giao diện
  */
 export type DocumentChangeRequestItem = DocumentRagRequestResponse;
+
+/**
+ * Payload gửi lên API POST /api/document-requests/documents/{documentId}/update
+ */
+export interface CreateDocumentUpdateRequestPayload {
+  title: string;
+  description: string | null;
+  allowDownload: boolean;
+}
 
 /**
  * Payload gửi lên API POST /api/document-requests/{requestId}/reject

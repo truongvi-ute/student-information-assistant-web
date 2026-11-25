@@ -53,3 +53,59 @@ export function formatFileSize(bytes: number): string {
   const mb = kb / 1024;
   return `${mb.toFixed(2)} MB`;
 }
+
+export interface DocumentMetadataSnapshot {
+  title: string;
+  description: string | null;
+  allowDownload: boolean;
+}
+
+export function normalizeOptionalDescription(
+  value?: string | null
+): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function hasDocumentMetadataChanges(
+  current: DocumentMetadataSnapshot,
+  proposed: DocumentMetadataSnapshot
+): boolean {
+  return (
+    proposed.title.trim() !== current.title.trim() ||
+    normalizeOptionalDescription(proposed.description) !==
+      normalizeOptionalDescription(current.description) ||
+    Boolean(proposed.allowDownload) !== Boolean(current.allowDownload)
+  );
+}
+
+export function validateDocumentUpdateForm(
+  current: DocumentMetadataSnapshot,
+  title: string,
+  description: string,
+  allowDownload: boolean
+): string | null {
+  const cleanTitle = title.trim();
+  if (!cleanTitle) {
+    return "Vui lòng nhập tên tài liệu.";
+  }
+
+  if (cleanTitle.length > 255) {
+    return "Tên tài liệu không được vượt quá 255 ký tự.";
+  }
+
+  if (
+    !hasDocumentMetadataChanges(current, {
+      title: cleanTitle,
+      description: normalizeOptionalDescription(description),
+      allowDownload,
+    })
+  ) {
+    return "Chưa có thông tin nào thay đổi so với hiện tại.";
+  }
+
+  return null;
+}

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { Fragment, useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   Upload,
   Search,
@@ -9,26 +9,36 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  Edit3,
+  Archive,
+  ChevronDown,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { DocumentUploadModal } from "@/components/documents/DocumentUploadModal";
+import { DocumentUpdateRequestModal } from "@/components/documents/DocumentUpdateRequestModal";
+import { DocumentDeleteRequestModal } from "@/components/documents/DocumentDeleteRequestModal";
 import {
   DocumentLifecycleBadge,
   DocumentProcessingBadge,
   DocumentRequestStatusBadge,
   DocumentRequestTypeBadge,
+  formatDateTimeVi,
   formatDateVi,
   summarizeDocumentRequests,
 } from "@/components/documents/DocumentStatusBadges";
 import { documentService } from "@/services/document.service";
 import { ApiClientError } from "@/lib/api/api-error";
 import type {
+  CreateDocumentUpdateRequestPayload,
   DocumentItem,
   DocumentRagRequestResponse,
   DocumentLifecycleStatus,
   DocumentUploadResponse,
 } from "@/types/document";
-import { formatFileSize } from "@/validations/document.validation";
+import {
+  formatFileSize,
+  normalizeOptionalDescription,
+} from "@/validations/document.validation";
 
 type AdvisorDocTab = "DOCUMENTS" | "REQUESTS";
 
@@ -207,7 +217,7 @@ function ConfirmAddRequestModal({
               </span>
             </div>
             <div>
-              <span className="font-medium text-slate-500">Tệp đính kèm: </span>
+              <span className="font-medium text-slate-500">Tên tệp: </span>
               <span className="font-mono text-slate-700 break-all">
                 {doc.originalFilename} ({formatFileSize(doc.sizeBytes)})
               </span>
@@ -274,7 +284,9 @@ export function AdvisorDocumentsView() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [bannerMessage, setBannerMessage] = useState<{
     text: string;
-    type: "success" | "error";
+    type: "info" | "success" | "error";
+    loading?: boolean;
+    retryConflict?: boolean;
   } | null>(null);
 
   const [confirmingAdd, setConfirmingAdd] = useState<ConfirmAddState | null>(
@@ -284,39 +296,87 @@ export function AdvisorDocumentsView() {
   const [addModalError, setAddModalError] = useState<string | null>(null);
   const submittingAddRef = useRef(false);
 
-  const fetchDocuments = useCallback(async () => {
+  const [editingUpdateDoc, setEditingUpdateDoc] = useState<DocumentItem | null>(
+    null
+  );
+  const [isSubmittingUpdate, setIsSubmittingUpdate] = useState(false);
+  const [updateModalError, setUpdateModalError] = useState<string | null>(null);
+  const submittingUpdateRef = useRef(false);
+
+  const [confirmingDeleteDoc, setConfirmingDeleteDoc] =
+    useState<DocumentItem | null>(null);
+  const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
+  const [deleteModalError, setDeleteModalError] = useState<string | null>(null);
+  const submittingDeleteRef = useRef(false);
+  const [expandedRequestIds, setExpandedRequestIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const isMountedRef = useRef(true);
+  const reloadSeqRef = useRef(0);
+
+  const fetchDocuments = useCallback(async (): Promise<boolean> => {
     try {
       setIsDocumentsLoading(true);
       setDocumentsError(null);
       const data = await documentService.getDocuments();
       setDocuments(data);
+      return true;
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         setDocumentsError(err.message);
       } else {
         setDocumentsError("Không thể tải danh sách tài liệu.");
       }
+      return false;
     } finally {
       setIsDocumentsLoading(false);
     }
   }, []);
 
-  const fetchRequests = useCallback(async () => {
+  const fetchRequests = useCallback(async (): Promise<boolean> => {
     try {
       setIsRequestsLoading(true);
       setRequestsError(null);
       const data = await documentService.getMyRequests();
       setRequests(data);
+      return true;
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         setRequestsError(err.message);
       } else {
         setRequestsError("Không thể tải danh sách yêu cầu.");
       }
+      return false;
     } finally {
       setIsRequestsLoading(false);
     }
   }, []);
+
+  const reloadAfterConflict = useCallback(async () => {
+    const seq = ++reloadSeqRef.current;
+    setBannerMessage({
+      text: "Yêu cầu đã thay đổi. Đang tải lại danh sách…",
+      type: "info",
+      loading: true,
+    });
+    const [reqOk, docOk] = await Promise.all([
+      fetchRequests(),
+      fetchDocuments(),
+    ]);
+    if (!isMountedRef.current || reloadSeqRef.current !== seq) return;
+    if (reqOk && docOk) {
+      setBannerMessage({
+        text: "Yêu cầu đã thay đổi trước đó. Danh sách đã được cập nhật.",
+        type: "info",
+      });
+    } else {
+      setBannerMessage({
+        text: "Yêu cầu đã thay đổi. Chưa tải lại được danh sách.",
+        type: "error",
+        retryConflict: true,
+      });
+    }
+  }, [fetchDocuments, fetchRequests]);
 
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
@@ -327,6 +387,13 @@ export function AdvisorDocumentsView() {
       setIsRefreshing(false);
     }
   }, [fetchDocuments, fetchRequests, isRefreshing]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -395,6 +462,29 @@ export function AdvisorDocumentsView() {
     });
   }, [documents, searchQuery, lifecycleFilter]);
 
+  const sortedRequests = useMemo(() => {
+    return [...requests].sort((a, b) => {
+      const ta = Date.parse(a.createdAt);
+      const tb = Date.parse(b.createdAt);
+      return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
+    });
+  }, [requests]);
+
+  const sameDayMultiDocDates = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const req of requests) {
+      const key = `${req.documentId}::${formatDateVi(req.createdAt)}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const multi = new Set<string>();
+    for (const [key, count] of counts) {
+      if (count > 1) {
+        multi.add(key);
+      }
+    }
+    return multi;
+  }, [requests]);
+
   if (user && user.role !== "ADVISOR") {
     return (
       <div className="rounded-md border border-red-200 bg-red-50 p-5 text-center">
@@ -403,7 +493,7 @@ export function AdvisorDocumentsView() {
           Không có quyền truy cập
         </h2>
         <p className="mt-1 text-xs text-red-600">
-          Trang này chỉ dành cho tài khoản Cố vấn học tập.
+          Trang này chỉ dành cho tài khoản Tư vấn viên.
         </p>
       </div>
     );
@@ -438,10 +528,11 @@ export function AdvisorDocumentsView() {
         user?.id !== undefined && user?.id !== null && String(user.id).trim()
           ? String(user.id)
           : null,
-      uploadedByName: user?.fullName || user?.email || "Cố vấn",
+      uploadedByName: user?.fullName || user?.email || "Tư vấn viên",
       uploadedByEmail: user?.email,
     };
     setDocuments((prev) => [newDoc, ...prev]);
+    reloadSeqRef.current += 1;
     setBannerMessage({
       text: `Đã tải lên tài liệu "${uploaded.title}". Bạn có thể gửi yêu cầu để Quản trị viên xét duyệt.`,
       type: "success",
@@ -473,6 +564,7 @@ export function AdvisorDocumentsView() {
       await documentService.createAddRequest(targetDoc.documentId);
       const docTitle = targetDoc.title;
       setConfirmingAdd(null);
+      reloadSeqRef.current += 1;
       setBannerMessage({
         text: isResend
           ? `Đã gửi lại yêu cầu thêm tài liệu "${docTitle}". Vui lòng chờ Quản trị viên xét duyệt.`
@@ -484,11 +576,7 @@ export function AdvisorDocumentsView() {
       if (err instanceof ApiClientError) {
         if (err.status === 409) {
           setConfirmingAdd(null);
-          setBannerMessage({
-            text: "Trạng thái yêu cầu của tài liệu đã thay đổi hoặc đã được xử lý. Đã làm mới dữ liệu.",
-            type: "error",
-          });
-          await Promise.all([fetchRequests(), fetchDocuments()]);
+          await reloadAfterConflict();
         } else if (err.status === 403) {
           setAddModalError(
             "Bạn chỉ có thể gửi yêu cầu cho tài liệu do chính mình tải lên."
@@ -510,6 +598,114 @@ export function AdvisorDocumentsView() {
     } finally {
       submittingAddRef.current = false;
       setIsSubmittingAdd(false);
+    }
+  };
+
+  const handleSubmitUpdateRequest = async (
+    payload: CreateDocumentUpdateRequestPayload
+  ) => {
+    if (!editingUpdateDoc || submittingUpdateRef.current) return;
+
+    const targetDoc = editingUpdateDoc;
+    if (!isOwnedByCurrentAdvisor(targetDoc)) {
+      setUpdateModalError(
+        "Bạn chỉ có thể gửi yêu cầu cập nhật cho tài liệu do chính mình tải lên."
+      );
+      return;
+    }
+
+    submittingUpdateRef.current = true;
+    setIsSubmittingUpdate(true);
+    setUpdateModalError(null);
+
+    try {
+      await documentService.createUpdateRequest(targetDoc.documentId, payload);
+      setEditingUpdateDoc(null);
+      reloadSeqRef.current += 1;
+      setBannerMessage({
+        text: "Đã gửi yêu cầu cập nhật. Tài liệu vẫn giữ nguyên cho đến khi được duyệt.",
+        type: "success",
+      });
+      await Promise.all([fetchRequests(), fetchDocuments()]);
+    } catch (err: unknown) {
+      if (err instanceof ApiClientError) {
+        if (err.status === 409) {
+          setEditingUpdateDoc(null);
+          await reloadAfterConflict();
+        } else if (err.status === 403) {
+          setUpdateModalError(
+            "Bạn chỉ có thể gửi yêu cầu cập nhật cho tài liệu do chính mình tải lên."
+          );
+        } else if (err.status === 404) {
+          setUpdateModalError("Không tìm thấy thông tin tài liệu.");
+        } else {
+          setUpdateModalError(
+            err.message || "Gửi yêu cầu cập nhật thất bại. Vui lòng thử lại."
+          );
+        }
+      } else if (err instanceof Error) {
+        setUpdateModalError(err.message);
+      } else {
+        setUpdateModalError(
+          "Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại dịch vụ."
+        );
+      }
+    } finally {
+      submittingUpdateRef.current = false;
+      setIsSubmittingUpdate(false);
+    }
+  };
+
+  const handleConfirmSendDeleteRequest = async () => {
+    if (!confirmingDeleteDoc || submittingDeleteRef.current) return;
+
+    const targetDoc = confirmingDeleteDoc;
+    if (!isOwnedByCurrentAdvisor(targetDoc)) {
+      setDeleteModalError(
+        "Bạn chỉ có thể gửi yêu cầu ngừng sử dụng cho tài liệu do chính mình tải lên."
+      );
+      return;
+    }
+
+    submittingDeleteRef.current = true;
+    setIsSubmittingDelete(true);
+    setDeleteModalError(null);
+
+    try {
+      await documentService.createDeleteRequest(targetDoc.documentId);
+      setConfirmingDeleteDoc(null);
+      reloadSeqRef.current += 1;
+      setBannerMessage({
+        text: "Đã gửi yêu cầu ngừng sử dụng. Tài liệu vẫn hoạt động cho đến khi được duyệt.",
+        type: "success",
+      });
+      await Promise.all([fetchRequests(), fetchDocuments()]);
+    } catch (err: unknown) {
+      if (err instanceof ApiClientError) {
+        if (err.status === 409) {
+          setConfirmingDeleteDoc(null);
+          await reloadAfterConflict();
+        } else if (err.status === 403) {
+          setDeleteModalError(
+            "Bạn chỉ có thể gửi yêu cầu ngừng sử dụng cho tài liệu do chính mình tải lên."
+          );
+        } else if (err.status === 404) {
+          setDeleteModalError("Không tìm thấy thông tin tài liệu.");
+        } else {
+          setDeleteModalError(
+            err.message || "Gửi yêu cầu ngừng sử dụng thất bại. Vui lòng thử lại."
+          );
+        }
+      } else if (err instanceof Error) {
+        setDeleteModalError(err.message);
+      } else {
+        setDeleteModalError(
+          "Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại dịch vụ."
+        );
+      }
+    } finally {
+      submittingDeleteRef.current = false;
+      setIsSubmittingDelete(false);
     }
   };
 
@@ -540,17 +736,23 @@ export function AdvisorDocumentsView() {
 
     return (
       <div className="space-y-1">
-        <DocumentRequestStatusBadge status={displayReq.status} />
-        {displayReq.status === "APPROVED" && !isReadyForChatbot && (
-          <p className="text-[11px] text-slate-500">
-            {doc.ragStatus === "FAILED"
-              ? "Xử lý RAG thất bại"
-              : "Chưa sẵn sàng cho Chatbot"}
-          </p>
-        )}
+        <div className="flex flex-wrap items-center gap-1">
+          <DocumentRequestTypeBadge type={displayReq.requestType} />
+          <DocumentRequestStatusBadge status={displayReq.status} />
+        </div>
+        {displayReq.requestType === "ADD" &&
+          displayReq.status === "APPROVED" &&
+          !isReadyForChatbot && (
+            <p className="text-[11px] text-slate-500">
+              {doc.ragStatus === "FAILED"
+                ? "Xử lý RAG thất bại"
+                : "Chưa sẵn sàng cho Chatbot"}
+            </p>
+          )}
         {displayReq.status === "REJECTED" && displayReq.rejectionReason && (
-          <p className="max-w-xs rounded border border-red-100 bg-red-50/80 p-1.5 text-[11px] text-red-600 break-words">
-            Lý do: {displayReq.rejectionReason}
+          <p className="max-w-xs line-clamp-2 text-[11px] text-slate-600 break-words">
+            <span className="font-medium text-red-700">Lý do: </span>
+            {displayReq.rejectionReason}
           </p>
         )}
       </div>
@@ -569,6 +771,52 @@ export function AdvisorDocumentsView() {
       doc.ragStatus === "NOT_INDEXED" &&
       !summary.hasPendingRequest &&
       !summary.hasApprovedAddRequest;
+
+    const canProposeActiveChanges =
+      isOwner &&
+      !isRequestsLoading &&
+      !requestsError &&
+      doc.lifecycleStatus === "ACTIVE" &&
+      !summary.hasPendingRequest;
+
+    if (canProposeActiveChanges) {
+      return (
+        <div
+          className={
+            fullWidth
+              ? "grid grid-cols-2 gap-2 pt-1"
+              : "inline-flex items-center justify-end gap-1.5"
+          }
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setUpdateModalError(null);
+              setEditingUpdateDoc(doc);
+            }}
+            className={`inline-flex items-center justify-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-700 ${
+              fullWidth ? "w-full" : ""
+            }`}
+          >
+            <Edit3 className="h-3 w-3 shrink-0" />
+            <span>Cập nhật</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteModalError(null);
+              setConfirmingDeleteDoc(doc);
+            }}
+            className={`inline-flex items-center justify-center gap-1 rounded border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 ${
+              fullWidth ? "w-full" : ""
+            }`}
+          >
+            <Archive className="h-3 w-3 shrink-0" />
+            <span>Ngừng sử dụng</span>
+          </button>
+        </div>
+      );
+    }
 
     if (!canSubmitAdd) {
       return fullWidth ? null : <span className="text-xs text-slate-400">—</span>;
@@ -593,6 +841,97 @@ export function AdvisorDocumentsView() {
           {summary.latestRejectedAddRequest ? "Gửi lại duyệt" : "Gửi duyệt"}
         </span>
       </button>
+    );
+  };
+
+  const toggleRequestDetail = (requestId: string) => {
+    setExpandedRequestIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(requestId)) {
+        next.delete(requestId);
+      } else {
+        next.add(requestId);
+      }
+      return next;
+    });
+  };
+
+  const formatSentTime = (req: DocumentRagRequestResponse): string => {
+    const day = formatDateVi(req.createdAt);
+    return sameDayMultiDocDates.has(`${req.documentId}::${day}`)
+      ? formatDateTimeVi(req.createdAt)
+      : day;
+  };
+
+  const renderRequestExpandedDetails = (
+    req: DocumentRagRequestResponse,
+    doc?: DocumentItem
+  ) => {
+    const proposedDescText =
+      normalizeOptionalDescription(req.proposedDescription) ?? "Không có mô tả";
+    const allowDownloadLabel =
+      req.proposedAllowDownload === null ||
+      req.proposedAllowDownload === undefined
+        ? "—"
+        : req.proposedAllowDownload
+          ? "Có"
+          : "Không";
+
+    return (
+      <div className="space-y-3 text-xs text-slate-600">
+        {req.requestType === "UPDATE" && (
+          <div className="space-y-1.5 rounded border border-slate-200 bg-white p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Nội dung yêu cầu
+            </p>
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-[140px_1fr]">
+              <dt className="text-slate-500">Tên tài liệu</dt>
+              <dd className="font-medium text-slate-900 break-words">
+                {req.proposedTitle?.trim() || "—"}
+              </dd>
+              <dt className="text-slate-500">Mô tả</dt>
+              <dd className="whitespace-pre-wrap text-slate-700 break-words">
+                {proposedDescText}
+              </dd>
+              <dt className="text-slate-500">Cho phép tải xuống</dt>
+              <dd className="font-medium text-slate-900">{allowDownloadLabel}</dd>
+            </dl>
+          </div>
+        )}
+
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-[140px_1fr]">
+          {doc?.originalFilename && (
+            <>
+              <dt className="text-slate-500">Tên tệp</dt>
+              <dd className="font-mono text-[11px] text-slate-700 break-all">
+                {doc.originalFilename}
+              </dd>
+            </>
+          )}
+          <dt className="text-slate-500">Thời điểm gửi</dt>
+          <dd className="text-slate-700">{formatDateTimeVi(req.createdAt)}</dd>
+          {req.reviewedByName && (
+            <>
+              <dt className="text-slate-500">Người xét duyệt</dt>
+              <dd className="font-medium text-slate-900">{req.reviewedByName}</dd>
+            </>
+          )}
+          {req.reviewedAt && (
+            <>
+              <dt className="text-slate-500">Thời điểm xét duyệt</dt>
+              <dd className="text-slate-700">{formatDateTimeVi(req.reviewedAt)}</dd>
+            </>
+          )}
+          {req.status === "REJECTED" && req.rejectionReason && (
+            <>
+              <dt className="text-slate-500">Lý do từ chối</dt>
+              <dd className="whitespace-pre-wrap text-slate-800 break-words">
+                {req.rejectionReason}
+              </dd>
+            </>
+          )}
+        </dl>
+      </div>
     );
   };
 
@@ -624,6 +963,7 @@ export function AdvisorDocumentsView() {
             <button
               type="button"
               onClick={() => {
+                reloadSeqRef.current += 1;
                 setBannerMessage(null);
                 setIsUploadModalOpen(true);
               }}
@@ -642,25 +982,45 @@ export function AdvisorDocumentsView() {
             className={`flex items-center justify-between gap-2 rounded border px-3.5 py-2 text-xs ${
               bannerMessage.type === "success"
                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-red-200 bg-red-50 text-red-700"
+                : bannerMessage.type === "info"
+                  ? "border-amber-200 bg-amber-50 text-amber-800"
+                  : "border-red-200 bg-red-50 text-red-700"
             }`}
           >
             <div className="flex items-center gap-2">
-              {bannerMessage.type === "success" ? (
+              {bannerMessage.loading ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-amber-700" />
+              ) : bannerMessage.type === "success" ? (
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+              ) : bannerMessage.type === "info" ? (
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-700" />
               ) : (
                 <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
               )}
               <span>{bannerMessage.text}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setBannerMessage(null)}
-              aria-label="Đóng thông báo"
-              className="text-slate-400 hover:text-slate-600"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex shrink-0 items-center gap-2.5">
+              {bannerMessage.retryConflict && (
+                <button
+                  type="button"
+                  onClick={() => void reloadAfterConflict()}
+                  className="font-medium text-red-700 underline hover:text-red-800"
+                >
+                  Thử lại
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  reloadSeqRef.current += 1;
+                  setBannerMessage(null);
+                }}
+                aria-label="Đóng thông báo"
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -827,7 +1187,7 @@ export function AdvisorDocumentsView() {
                         <tr>
                           <th className="px-4 py-3">Tài liệu</th>
                           <th className="px-4 py-3 whitespace-nowrap">
-                            Tệp đính kèm
+                            Tên tệp
                           </th>
                           <th className="px-4 py-3 whitespace-nowrap">
                             Trạng thái xử lý
@@ -939,50 +1299,62 @@ export function AdvisorDocumentsView() {
           <>
             {/* Mobile Card List */}
             <div className="space-y-3 md:hidden">
-              {requests.map((req) => {
+              {sortedRequests.map((req) => {
                 const doc = documentMap.get(req.documentId);
+                const isExpanded = expandedRequestIds.has(req.id);
+                const detailId = `mobile-request-detail-${req.id}`;
                 return (
                   <div
                     key={req.id}
                     className="space-y-2.5 rounded border border-slate-200 bg-white p-4"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900 break-words">
-                          {req.documentTitle}
-                        </p>
-                        {doc && (
-                          <p className="mt-0.5 font-mono text-[11px] text-slate-500 break-all">
-                            {doc.originalFilename}
-                          </p>
-                        )}
-                      </div>
+                      <p className="min-w-0 line-clamp-2 text-sm font-medium text-slate-900 break-words">
+                        {req.documentTitle}
+                      </p>
                       <DocumentRequestTypeBadge type={req.requestType} />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <DocumentRequestStatusBadge status={req.status} />
-                      {doc && (
-                        <DocumentProcessingBadge
-                          lifecycleStatus={doc.lifecycleStatus}
-                          ragStatus={doc.ragStatus}
-                        />
-                      )}
+                      <span className="text-[11px] text-slate-500">
+                        {formatSentTime(req)}
+                      </span>
                     </div>
 
                     {req.status === "REJECTED" && req.rejectionReason && (
-                      <p className="rounded border border-red-100 bg-red-50/80 p-2 text-[11px] text-red-600 break-words">
-                        Lý do: {req.rejectionReason}
+                      <p className="line-clamp-2 text-xs text-slate-600 break-words">
+                        <span className="font-medium text-red-700">Lý do: </span>
+                        {req.rejectionReason}
                       </p>
                     )}
 
-                    <div className="flex flex-wrap justify-between gap-2 border-t border-slate-100 pt-2 text-[11px] text-slate-500">
-                      <span>Ngày gửi: {formatDateVi(req.createdAt)}</span>
-                      <span>
-                        Xét duyệt:{" "}
-                        {req.reviewedAt ? formatDateVi(req.reviewedAt) : "—"}
-                      </span>
+                    <div className="flex justify-end border-t border-slate-100 pt-2">
+                      <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        aria-controls={detailId}
+                        onClick={() => toggleRequestDetail(req.id)}
+                        className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
+                        <span>{isExpanded ? "Thu gọn" : "Chi tiết"}</span>
+                        <ChevronDown
+                          className={`h-3.5 w-3.5 transition-transform ${
+                            isExpanded ? "rotate-180" : ""
+                          }`}
+                          aria-hidden="true"
+                        />
+                      </button>
                     </div>
+
+                    {isExpanded && (
+                      <div
+                        id={detailId}
+                        className="border-t border-slate-100 pt-2.5"
+                      >
+                        {renderRequestExpandedDetails(req, doc)}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -991,77 +1363,90 @@ export function AdvisorDocumentsView() {
             {/* Desktop Table */}
             <div className="hidden overflow-hidden rounded border border-slate-200 bg-white md:block">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full table-fixed text-left text-xs">
                   <thead className="border-b border-slate-100 bg-slate-50 font-medium uppercase tracking-wider text-slate-500">
                     <tr>
-                      <th className="px-4 py-3 whitespace-nowrap">
+                      <th className="w-[116px] px-3 py-3 whitespace-nowrap">
                         Loại yêu cầu
                       </th>
-                      <th className="px-4 py-3">Tài liệu</th>
-                      <th className="px-4 py-3 whitespace-nowrap">
-                        Trạng thái yêu cầu
+                      <th className="px-3 py-3">Tài liệu</th>
+                      <th className="w-[126px] px-3 py-3 whitespace-nowrap">
+                        Ngày gửi
                       </th>
-                      <th className="px-4 py-3 whitespace-nowrap">
-                        Trạng thái tài liệu
+                      <th className="w-[180px] lg:w-[215px] xl:w-[255px] px-3 py-3 whitespace-nowrap">
+                        Trạng thái
                       </th>
-                      <th className="px-4 py-3 whitespace-nowrap">Ngày gửi</th>
-                      <th className="px-4 py-3 whitespace-nowrap">
-                        Ngày xét duyệt
+                      <th className="w-[98px] px-3 py-3 text-right whitespace-nowrap">
+                        Chi tiết
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {requests.map((req) => {
+                    {sortedRequests.map((req) => {
                       const doc = documentMap.get(req.documentId);
+                      const isExpanded = expandedRequestIds.has(req.id);
+                      const detailId = `request-detail-${req.id}`;
 
                       return (
-                        <tr
-                          key={req.id}
-                          className="transition-colors hover:bg-slate-50/70"
-                        >
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <DocumentRequestTypeBadge type={req.requestType} />
-                          </td>
-                          <td className="px-4 py-3">
-                            <p className="font-medium text-slate-900">
-                              {req.documentTitle}
-                            </p>
-                            {doc && (
-                              <p className="mt-0.5 font-mono text-[11px] text-slate-500">
-                                {doc.originalFilename}
+                        <Fragment key={req.id}>
+                          <tr className="transition-colors hover:bg-slate-50/70">
+                            <td className="px-3 py-3 align-top whitespace-nowrap">
+                              <DocumentRequestTypeBadge type={req.requestType} />
+                            </td>
+                            <td className="px-3 py-3 align-top">
+                              <p
+                                className="line-clamp-2 font-medium text-slate-900 break-words [overflow-wrap:anywhere]"
+                                title={req.documentTitle}
+                              >
+                                {req.documentTitle}
                               </p>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="space-y-1">
-                              <DocumentRequestStatusBadge status={req.status} />
-                              {req.status === "REJECTED" &&
-                                req.rejectionReason && (
-                                  <p className="max-w-xs rounded border border-red-100 bg-red-50/80 p-1.5 text-[11px] text-red-600 break-words">
-                                    Lý do: {req.rejectionReason}
-                                  </p>
-                                )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {doc ? (
-                              <DocumentProcessingBadge
-                                lifecycleStatus={doc.lifecycleStatus}
-                                ragStatus={doc.ragStatus}
-                              />
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                            {formatDateVi(req.createdAt)}
-                          </td>
-                          <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                            {req.reviewedAt
-                              ? formatDateVi(req.reviewedAt)
-                              : "—"}
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="px-3 py-3 align-top text-slate-600 whitespace-nowrap">
+                              {formatSentTime(req)}
+                            </td>
+                            <td className="px-3 py-3 align-top">
+                              <div className="space-y-1">
+                                <DocumentRequestStatusBadge status={req.status} />
+                                {req.status === "REJECTED" &&
+                                  req.rejectionReason && (
+                                    <p
+                                      className="line-clamp-2 text-xs leading-relaxed text-slate-600 break-words"
+                                      title={req.rejectionReason}
+                                    >
+                                      <span className="font-medium text-red-700">
+                                        Lý do:{" "}
+                                      </span>
+                                      {req.rejectionReason}
+                                    </p>
+                                  )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 align-top text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                aria-expanded={isExpanded}
+                                aria-controls={detailId}
+                                onClick={() => toggleRequestDetail(req.id)}
+                                className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                              >
+                                <span>{isExpanded ? "Thu gọn" : "Chi tiết"}</span>
+                                <ChevronDown
+                                  className={`h-3.5 w-3.5 transition-transform ${
+                                    isExpanded ? "rotate-180" : ""
+                                  }`}
+                                  aria-hidden="true"
+                                />
+                              </button>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr id={detailId} className="bg-slate-50/70">
+                              <td colSpan={5} className="px-3 py-3">
+                                {renderRequestExpandedDetails(req, doc)}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </tbody>
@@ -1096,6 +1481,36 @@ export function AdvisorDocumentsView() {
           onConfirm={() => void handleConfirmSendAddRequest()}
         />
       )}
+
+      {/* Modal Yêu cầu cập nhật metadata */}
+      <DocumentUpdateRequestModal
+        open={editingUpdateDoc !== null}
+        document={editingUpdateDoc}
+        isSubmitting={isSubmittingUpdate}
+        errorMessage={updateModalError}
+        onClose={() => {
+          if (!isSubmittingUpdate) {
+            setEditingUpdateDoc(null);
+            setUpdateModalError(null);
+          }
+        }}
+        onSubmit={handleSubmitUpdateRequest}
+      />
+
+      {/* Modal Yêu cầu ngừng sử dụng tài liệu */}
+      <DocumentDeleteRequestModal
+        open={confirmingDeleteDoc !== null}
+        document={confirmingDeleteDoc}
+        isSubmitting={isSubmittingDelete}
+        errorMessage={deleteModalError}
+        onClose={() => {
+          if (!isSubmittingDelete) {
+            setConfirmingDeleteDoc(null);
+            setDeleteModalError(null);
+          }
+        }}
+        onConfirm={handleConfirmSendDeleteRequest}
+      />
     </>
   );
 }

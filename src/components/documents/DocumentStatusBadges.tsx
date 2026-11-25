@@ -95,6 +95,19 @@ export function formatDateVi(value?: string | null): string {
   return date.toLocaleDateString("vi-VN");
 }
 
+export function formatDateTimeVi(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 const REQUEST_STATUS_PRIORITY: Record<DocumentRequestStatus, number> = {
   PENDING: 3,
   APPROVED: 2,
@@ -159,8 +172,7 @@ export function summarizeDocumentRequests(
   const hasPendingRequest = pendingRequest !== null;
   const hasApprovedAddRequest = approvedAddRequest !== null;
 
-  const displayRequest =
-    pendingRequest ?? approvedAddRequest ?? latestRequest;
+  const displayRequest = pendingRequest ?? latestRequest;
 
   const latestRejectedAddRequest =
     !hasPendingRequest &&
@@ -296,16 +308,16 @@ export function DocumentRequestStatusBadge({
       );
     case "APPROVED":
       return (
-        <span className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 whitespace-nowrap">
+        <span className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 whitespace-nowrap">
           <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>Đã duyệt yêu cầu</span>
+          <span>Đã duyệt</span>
         </span>
       );
     case "REJECTED":
       return (
         <span className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 whitespace-nowrap">
           <XCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>Từ chối</span>
+          <span>Đã từ chối</span>
         </span>
       );
   }
@@ -319,20 +331,20 @@ export function DocumentRequestTypeBadge({
   switch (type) {
     case "ADD":
       return (
-        <span className="inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 whitespace-nowrap">
+        <span className="inline-flex items-center rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 whitespace-nowrap">
           Thêm mới
         </span>
       );
     case "UPDATE":
       return (
-        <span className="inline-flex items-center rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 whitespace-nowrap">
+        <span className="inline-flex items-center rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 whitespace-nowrap">
           Cập nhật
         </span>
       );
     case "DELETE":
       return (
-        <span className="inline-flex items-center rounded border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 whitespace-nowrap">
-          Ngừng dùng
+        <span className="inline-flex items-center rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 whitespace-nowrap">
+          Ngừng sử dụng
         </span>
       );
   }

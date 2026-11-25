@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { PdfHighlightViewer } from "@/components/chatbot/PdfHighlightViewer";
 import { ApiClientError } from "@/lib/api/api-error";
 import { documentService } from "@/services/document.service";
+import type { AiCitationResponse } from "@/types/chatbot";
 import type {
   DocumentItem,
   DocumentRagRequestResponse,
@@ -59,6 +60,8 @@ interface PreviewLoadState {
   markdownContent: string | null;
   error: string | null;
 }
+
+const EMPTY_HIT_CHUNKS: AiCitationResponse[] = [];
 
 const markdownComponents: Components = {
   h1: ({ children }) => (
@@ -254,8 +257,9 @@ function DocumentReviewModalContent({
   const isDocxPendingReview = Boolean(
     !isPdf && isPendingAddReview && isEligibleForAdd
   );
+  const isArchivedDoc = doc?.lifecycleStatus === "ARCHIVED";
   const shouldFetchContent = Boolean(
-    doc && (isPdf || doc.ragStatus === "READY")
+    doc && !isArchivedDoc && (isPdf || doc.ragStatus === "READY")
   );
   const previewTargetKey = doc
     ? `${doc.documentId}:${doc.ragStatus}:${isPdf ? "pdf" : "docx"}:${previewRetryCount}`
@@ -280,10 +284,20 @@ function DocumentReviewModalContent({
   const handlePdfRenderStateChange = useCallback(
     (state: { isRendering: boolean; renderError: string | null }) => {
       if (!previewTargetKey) return;
-      setPdfRenderState({
-        key: previewTargetKey,
-        isRendering: state.isRendering,
-        renderError: state.renderError,
+      setPdfRenderState((prev) => {
+        if (
+          prev &&
+          prev.key === previewTargetKey &&
+          prev.isRendering === state.isRendering &&
+          prev.renderError === state.renderError
+        ) {
+          return prev;
+        }
+        return {
+          key: previewTargetKey,
+          isRendering: state.isRendering,
+          renderError: state.renderError,
+        };
       });
     },
     [previewTargetKey]
@@ -830,7 +844,7 @@ function DocumentReviewModalContent({
                 </div>
 
                 <div>
-                  <dt className="text-[#64748B]">Tệp đính kèm</dt>
+                  <dt className="text-[#64748B]">Tên tệp</dt>
                   <dd className="mt-0.5 font-mono text-[11px] text-[#0F172A] break-all">
                     {doc.originalFilename}
                   </dd>
@@ -854,7 +868,9 @@ function DocumentReviewModalContent({
                 </div>
 
                 <div>
-                  <dt className="text-[#64748B]">Người gửi / tải lên</dt>
+                  <dt className="text-[#64748B]">
+                    {request ? "Người gửi" : "Người tải lên"}
+                  </dt>
                   <dd className="mt-0.5 font-medium text-[#0F172A] break-words">
                     {request?.requestedByName || doc.uploadedByName || "—"}
                     {doc.uploadedByEmail && (
@@ -911,6 +927,18 @@ function DocumentReviewModalContent({
                   </p>
                 </div>
               </div>
+            ) : isArchivedDoc ? (
+              <div className="flex flex-1 items-center justify-center p-6">
+                <div className="max-w-md rounded-xl border border-[#E2E8F0] bg-white p-5 text-center">
+                  <FileText className="mx-auto h-7 w-7 text-[#64748B]" />
+                  <h4 className="mt-2.5 text-sm font-semibold text-[#0F172A]">
+                    Tài liệu đã ngừng sử dụng (Lưu trữ)
+                  </h4>
+                  <p className="mt-1.5 text-xs leading-relaxed text-[#475569]">
+                    Tài liệu này đã chuyển sang trạng thái Lưu trữ nên hệ thống đã khóa thao tác mở xem nội dung và tải tệp gốc.
+                  </p>
+                </div>
+              </div>
             ) : isPdf ? (
               isPreviewLoading ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-xs text-[#64748B]">
@@ -942,7 +970,7 @@ function DocumentReviewModalContent({
                   <PdfHighlightViewer
                     key={previewTargetKey ?? doc.documentId}
                     pdfBytes={activePdfBytes}
-                    hitChunks={[]}
+                    hitChunks={EMPTY_HIT_CHUNKS}
                     onRenderStateChange={handlePdfRenderStateChange}
                     onRetry={() => setPreviewRetryCount((c) => c + 1)}
                   />
