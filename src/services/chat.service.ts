@@ -4,6 +4,8 @@ import type {
   ChatConversationItem,
   ChatDepartment,
   ChatHistoryResponse,
+  MarkChatReadRequest,
+  MarkChatReadResponse,
 } from "@/types/chat";
 
 export const chatService = {
@@ -18,6 +20,10 @@ export const chatService = {
 
   getConversations(): Promise<ChatConversationItem[]> {
     return apiClient.get<ChatConversationItem[]>("/chat/conversations");
+  },
+
+  markConversationRead(payload: MarkChatReadRequest): Promise<MarkChatReadResponse> {
+    return apiClient.post<MarkChatReadResponse>("/chat/conversations/read", payload);
   },
 
   getDepartments(): Promise<ChatDepartment[]> {

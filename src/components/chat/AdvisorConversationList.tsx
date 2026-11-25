@@ -86,13 +86,18 @@ export function AdvisorConversationList({
           <div className="flex flex-col items-center gap-2.5 w-full max-h-[calc(100vh-210px)] overflow-y-auto no-scrollbar px-1">
             {conversations.map((conv) => {
               const isSelected = selectedPartnerId === conv.partnerId;
+              const unreadCount = conv.unreadCount ?? 0;
 
               return (
                 <button
                   key={conv.conversationId || conv.partnerId}
                   type="button"
                   onClick={() => onSelectConversation(conv)}
-                  title={conv.partnerName}
+                  title={
+                    unreadCount > 0
+                      ? `${conv.partnerName} (${unreadCount} tin chưa đọc)`
+                      : conv.partnerName
+                  }
                   className={`relative p-0.5 rounded-full transition-all ${
                     isSelected
                       ? "ring-2 ring-[#1D4ED8] ring-offset-2 ring-offset-white scale-105"
@@ -110,6 +115,11 @@ export function AdvisorConversationList({
                       {conv.partnerName.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#1D4ED8] text-white text-[10px] font-semibold flex items-center justify-center border-2 border-white">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
                   {isSelected && (
                     <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#15803D] border-2 border-white rounded-full" />
                   )}
@@ -206,6 +216,7 @@ export function AdvisorConversationList({
           filteredConversations.map((conv) => {
             const isSelected = selectedPartnerId === conv.partnerId;
             const timeStr = formatConversationTime(conv.lastMessageAt);
+            const unreadCount = conv.unreadCount ?? 0;
 
             return (
               <button
@@ -231,12 +242,14 @@ export function AdvisorConversationList({
                 </Avatar>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center justify-between gap-1.5">
                     <p
                       className={`text-xs truncate ${
                         isSelected
                           ? "font-semibold text-[#1E40AF]"
-                          : "font-semibold text-[#0F172A]"
+                          : unreadCount > 0
+                            ? "font-bold text-[#0F172A]"
+                            : "font-semibold text-[#0F172A]"
                       }`}
                     >
                       {conv.partnerName}
@@ -244,7 +257,11 @@ export function AdvisorConversationList({
                     {timeStr && (
                       <span
                         className={`text-[11px] shrink-0 ${
-                          isSelected ? "text-[#1E40AF]/80 font-medium" : "text-[#475569]"
+                          isSelected
+                            ? "text-[#1E40AF]/80 font-medium"
+                            : unreadCount > 0
+                              ? "text-[#1D4ED8] font-semibold"
+                              : "text-[#475569]"
                         }`}
                       >
                         {timeStr}
@@ -252,15 +269,30 @@ export function AdvisorConversationList({
                     )}
                   </div>
 
-                  <p
-                    className={`text-xs truncate mt-0.5 ${
-                      isSelected ? "text-[#1E40AF]/85" : "text-[#475569]"
-                    }`}
-                  >
-                    <span>{isStudent ? conv.partnerDepartment || "Cố vấn" : "Sinh viên"}</span>
-                    <span className="mx-1 text-[#94A3B8]">•</span>
-                    <span>{conv.lastMessage || "Bắt đầu cuộc trò chuyện..."}</span>
-                  </p>
+                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                    <p
+                      className={`text-xs truncate ${
+                        isSelected
+                          ? "text-[#1E40AF]/85"
+                          : unreadCount > 0
+                            ? "text-[#0F172A] font-medium"
+                            : "text-[#475569]"
+                      }`}
+                    >
+                      <span>{isStudent ? conv.partnerDepartment || "Cố vấn" : "Sinh viên"}</span>
+                      <span className="mx-1 text-[#94A3B8]">•</span>
+                      <span>{conv.lastMessage || "Bắt đầu cuộc trò chuyện..."}</span>
+                    </p>
+
+                    {unreadCount > 0 && (
+                      <span
+                        aria-label={`${unreadCount} tin nhắn chưa đọc`}
+                        className="shrink-0 min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#1D4ED8] text-white text-[10px] font-semibold inline-flex items-center justify-center"
+                      >
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </button>
             );

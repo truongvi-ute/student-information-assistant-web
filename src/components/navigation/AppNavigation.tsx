@@ -23,23 +23,34 @@ export function AppNavigation({
           router.pathname === item.href ||
           (item.href !== "/admin" &&
             item.href !== "/advisor" &&
-            router.pathname.startsWith(item.href));
+            router.pathname.startsWith(`${item.href}/`));
+
+        const navLabel = item.badge
+          ? `${item.title} (${item.badge} chưa đọc)`
+          : item.title;
 
         return (
           <Link
             key={item.href}
             href={item.href}
             onClick={onItemClick}
-            aria-label={item.title}
+            aria-label={navLabel}
             aria-current={isActive ? "page" : undefined}
-            title={isCollapsed ? item.title : undefined}
+            title={isCollapsed ? navLabel : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
               isActive
                 ? "bg-[#DBEAFE] text-[#1D4ED8]"
                 : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
             } ${isCollapsed ? "justify-center px-2" : ""}`}
           >
-            <Icon className="h-5 w-5 shrink-0" />
+            <span className="relative inline-flex shrink-0">
+              <Icon className="h-5 w-5 shrink-0" />
+              {isCollapsed && item.badge && (
+                <span className="absolute -top-1.5 -right-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#1D4ED8] px-1 text-[10px] font-semibold text-white ring-2 ring-white">
+                  {item.badge}
+                </span>
+              )}
+            </span>
 
             {!isCollapsed && (
               <span className="flex-1 truncate">{item.title}</span>
