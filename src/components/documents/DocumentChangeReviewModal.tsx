@@ -139,7 +139,10 @@ function DocumentChangeReviewModalContent({
 
   const effectiveLifecycle =
     doc?.lifecycleStatus ?? request.documentLifecycleStatus;
-  const isEligible = effectiveLifecycle === "ACTIVE";
+  const isEligible =
+    isDeleteRequest &&
+    effectiveLifecycle === "ACTIVE" &&
+    (doc?.ragStatus ?? request.documentRagStatus) === "READY";
 
   const canApprove = Boolean(
     request.status === "PENDING" &&
@@ -287,7 +290,7 @@ function DocumentChangeReviewModalContent({
     if (!isEligible) {
       return isDeleteRequest
         ? "Chỉ tài liệu đang Hoạt động mới có thể duyệt ngừng sử dụng."
-        : "Chỉ tài liệu đang Hoạt động mới có thể duyệt cập nhật.";
+        : "Yêu cầu cập nhật cũ chỉ có thể được từ chối.";
     }
     return null;
   })();

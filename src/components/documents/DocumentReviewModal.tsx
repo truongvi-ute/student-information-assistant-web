@@ -49,6 +49,8 @@ export interface DocumentReviewModalProps {
     reason: string
   ) => Promise<void> | void;
   onReviewConflict?: () => Promise<void> | void;
+  lockProcessingAndFailedContent?: boolean;
+  onAccessForbidden?: () => Promise<void> | void;
   submittingAction?: "APPROVE" | "REJECT" | null;
   decisionError?: string | null;
   onClearDecisionError?: () => void;
@@ -151,6 +153,9 @@ function mapPreviewErrorMessage(err: unknown, isPdf: boolean): string {
         ? "Không tìm thấy tệp PDF trên máy chủ."
         : "Chưa tìm thấy nội dung trích xuất của tài liệu.";
     }
+    if (err.status === 409) {
+      return "Yêu cầu hoặc tài liệu đã thay đổi trạng thái. Vui lòng làm mới dữ liệu.";
+    }
     if (err.status === 403) {
       return "Bạn không có quyền xem nội dung tài liệu này.";
     }
@@ -206,6 +211,8 @@ function DocumentReviewModalContent({
   onApprove,
   onReject,
   onReviewConflict,
+  lockProcessingAndFailedContent = false,
+  onAccessForbidden,
   submittingAction = null,
   decisionError = null,
   onClearDecisionError,
@@ -216,8 +223,15 @@ function DocumentReviewModalContent({
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const downloadControllerRef = useRef<AbortController | null>(null);
   const reviewFileControllerRef = useRef<AbortController | null>(null);
+  const onReviewConflictRef = useRef(onReviewConflict);
+  const onAccessForbiddenRef = useRef(onAccessForbidden);
   const activeObjectUrlsRef = useRef<Set<string>>(new Set());
   const revokeTimersRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    onReviewConflictRef.current = onReviewConflict;
+    onAccessForbiddenRef.current = onAccessForbidden;
+  });
 
   const [previewRetryCount, setPreviewRetryCount] = useState(0);
   const [loadState, setLoadState] = useState<PreviewLoadState | null>(null);
@@ -254,15 +268,27 @@ function DocumentReviewModalContent({
       doc ? isPdfDocument(doc.originalFilename, doc.mimeType) : false,
     [doc]
   );
-  const isDocxPendingReview = Boolean(
-    !isPdf && isPendingAddReview && isEligibleForAdd
+  const isEligiblePendingAddReview = Boolean(
+    isPendingAddReview && isEligibleForAdd
   );
+  const isPdfPendingReview = Boolean(isPdf && isEligiblePendingAddReview);
+  const isDocxPendingReview = Boolean(!isPdf && isEligiblePendingAddReview);
   const isArchivedDoc = doc?.lifecycleStatus === "ARCHIVED";
-  const shouldFetchContent = Boolean(
-    doc && !isArchivedDoc && (isPdf || doc.ragStatus === "READY")
+  const isStatusOnlyDoc = Boolean(
+    lockProcessingAndFailedContent &&
+      doc &&
+      doc.lifecycleStatus === "DRAFT" &&
+      (doc.ragStatus === "PROCESSING" || doc.ragStatus === "FAILED")
   );
+  const shouldFetchContent = Boolean(
+    doc &&
+      !isArchivedDoc &&
+      !isStatusOnlyDoc &&
+      (isPdf || doc.ragStatus === "READY")
+  );
+  const reviewRequestId = request?.id ?? null;
   const previewTargetKey = doc
-    ? `${doc.documentId}:${doc.ragStatus}:${isPdf ? "pdf" : "docx"}:${previewRetryCount}`
+    ? `${doc.documentId}:${doc.ragStatus}:${isPdf ? "pdf" : "docx"}:${isPdfPendingReview ? `review-${reviewRequestId ?? "none"}` : "view"}:${previewRetryCount}`
     : null;
 
   const isPreviewLoading = Boolean(
@@ -426,9 +452,14 @@ function DocumentReviewModalContent({
     const loadPreview = async () => {
       try {
         if (isPdf) {
-          const res = await documentService.previewDocument(doc.documentId, {
-            signal: controller.signal,
-          });
+          const res =
+            isPdfPendingReview && reviewRequestId
+              ? await documentService.getReviewFile(reviewRequestId, {
+                  signal: controller.signal,
+                })
+              : await documentService.previewDocument(doc.documentId, {
+                  signal: controller.signal,
+                });
           const buffer = await res.blob.arrayBuffer();
           if (cancelled || controller.signal.aborted) return;
 
@@ -456,6 +487,26 @@ function DocumentReviewModalContent({
         }
       } catch (err: unknown) {
         if (cancelled || controller.signal.aborted) return;
+        if (
+          err instanceof ApiClientError &&
+          err.status === 409 &&
+          isPdfPendingReview &&
+          onReviewConflictRef.current
+        ) {
+          await onReviewConflictRef.current();
+          return;
+        }
+        if (err instanceof ApiClientError && err.status === 403) {
+          documentService.evictDocumentPreviewCache(doc.documentId);
+          setLoadState({
+            key: previewTargetKey,
+            pdfBytes: null,
+            markdownContent: null,
+            error: "Tài liệu hiện không cho phép xem nội dung ở trạng thái này.",
+          });
+          void onAccessForbiddenRef.current?.();
+          return;
+        }
         setLoadState({
           key: previewTargetKey,
           pdfBytes: null,
@@ -471,7 +522,14 @@ function DocumentReviewModalContent({
       cancelled = true;
       controller.abort();
     };
-  }, [doc, isPdf, previewTargetKey, shouldFetchContent]);
+  }, [
+    doc,
+    isPdf,
+    isPdfPendingReview,
+    previewTargetKey,
+    reviewRequestId,
+    shouldFetchContent,
+  ]);
 
   const triggerBrowserDownload = (blob: Blob, preferredFilename: string) => {
     if (
@@ -500,7 +558,13 @@ function DocumentReviewModalContent({
   };
 
   const handleDownloadOriginal = async () => {
-    if (!doc || isDownloading || !doc.allowDownload || doc.lifecycleStatus === "ARCHIVED") {
+    if (
+      !doc ||
+      isDownloading ||
+      !doc.allowDownload ||
+      doc.lifecycleStatus === "ARCHIVED" ||
+      isStatusOnlyDoc
+    ) {
       return;
     }
 
@@ -526,7 +590,11 @@ function DocumentReviewModalContent({
       if (controller.signal.aborted) return;
       if (err instanceof ApiClientError) {
         if (err.status === 403) {
-          setDownloadError("Tài liệu này không cho phép tải tệp gốc.");
+          documentService.evictDocumentPreviewCache(doc.documentId);
+          setDownloadError(
+            "Không thể tải tệp gốc: tài liệu không cho phép tải hoặc trạng thái đã thay đổi."
+          );
+          void onAccessForbiddenRef.current?.();
         } else if (err.status === 404) {
           setDownloadError("Không tìm thấy tệp gốc trên máy chủ.");
         } else {
@@ -546,7 +614,7 @@ function DocumentReviewModalContent({
     if (
       !request ||
       !doc ||
-      !isDocxPendingReview ||
+      !isEligiblePendingAddReview ||
       isDownloadingReviewFile ||
       isSubmitting
     ) {
@@ -566,6 +634,9 @@ function DocumentReviewModalContent({
         { signal: controller.signal }
       );
       if (controller.signal.aborted) return;
+      if (!blob || blob.size === 0) {
+        throw new Error("Không nhận được dữ liệu tệp kiểm tra hợp lệ.");
+      }
 
       triggerBrowserDownload(
         blob,
@@ -579,8 +650,8 @@ function DocumentReviewModalContent({
 
       if (err instanceof ApiClientError) {
         if (err.status === 409) {
-          if (onReviewConflict) {
-            await onReviewConflict();
+          if (onReviewConflictRef.current) {
+            await onReviewConflictRef.current();
             return;
           }
           setReviewFileError(
@@ -643,11 +714,13 @@ function DocumentReviewModalContent({
 
   const modalTitle =
     doc?.title || request?.documentTitle || "Xem chi tiết tài liệu";
+  const canShowPdfReviewDownloadButton = Boolean(doc && isPdfPendingReview);
   const canShowDownloadButton = Boolean(
     doc &&
-      !isDocxPendingReview &&
-      doc.allowDownload &&
-      doc.lifecycleStatus !== "ARCHIVED"
+      !isEligiblePendingAddReview &&
+      !isArchivedDoc &&
+      !isStatusOnlyDoc &&
+      doc.allowDownload
   );
   const canApprove = Boolean(
     isPendingAddReview &&
@@ -748,22 +821,49 @@ function DocumentReviewModalContent({
           </div>
 
           <div className="flex items-center gap-2">
-            {canShowDownloadButton && (
+            {canShowPdfReviewDownloadButton ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={isDownloading || isSubmitting}
-                onClick={() => void handleDownloadOriginal()}
+                disabled={isDownloadingReviewFile || isSubmitting}
+                onClick={() => void handleDownloadReviewFile()}
+                title={
+                  doc && !doc.allowDownload
+                    ? "Tệp gốc dùng để Quản trị viên kiểm tra trước khi duyệt; sinh viên không được tải."
+                    : undefined
+                }
                 className="h-8 gap-1.5 text-xs"
               >
-                {isDownloading ? (
+                {isDownloadingReviewFile ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <Download className="h-3.5 w-3.5" />
                 )}
-                <span>Tải tệp gốc</span>
+                <span>
+                  {hasDownloadedReviewFile
+                    ? "Tải lại tệp kiểm tra"
+                    : "Tải tệp kiểm tra"}
+                </span>
               </Button>
+            ) : (
+              canShowDownloadButton && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isDownloading || isSubmitting}
+                  onClick={() => void handleDownloadOriginal()}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  {isDownloading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                  <span>Tải tệp gốc</span>
+                </Button>
+              )
             )}
             <Button
               ref={closeButtonRef}
@@ -780,12 +880,14 @@ function DocumentReviewModalContent({
           </div>
         </header>
 
-        {downloadError && (
+        {(downloadError || (isPdfPendingReview && reviewFileError)) && (
           <div
             role="alert"
             className="border-b border-[#FECACA] bg-[#FEF2F2] px-4 py-2 text-xs text-[#B91C1C] sm:px-5"
           >
-            {downloadError}
+            {isPdfPendingReview && reviewFileError
+              ? reviewFileError
+              : downloadError}
           </div>
         )}
 
@@ -936,6 +1038,22 @@ function DocumentReviewModalContent({
                   </h4>
                   <p className="mt-1.5 text-xs leading-relaxed text-[#475569]">
                     Tài liệu này đã chuyển sang trạng thái Lưu trữ nên hệ thống đã khóa thao tác mở xem nội dung và tải tệp gốc.
+                  </p>
+                </div>
+              </div>
+            ) : isStatusOnlyDoc ? (
+              <div className="flex flex-1 items-center justify-center p-6">
+                <div className="max-w-md rounded-xl border border-[#E2E8F0] bg-white p-5 text-center">
+                  <FileText className="mx-auto h-7 w-7 text-[#64748B]" />
+                  <h4 className="mt-2.5 text-sm font-semibold text-[#0F172A]">
+                    {doc.ragStatus === "PROCESSING"
+                      ? "Tài liệu đang được xử lý RAG"
+                      : "Tài liệu xử lý RAG thất bại"}
+                  </h4>
+                  <p className="mt-1.5 text-xs leading-relaxed text-[#475569]">
+                    {doc.ragStatus === "PROCESSING"
+                      ? "Trong trạng thái Đang xử lý, Tư vấn viên chỉ theo dõi trạng thái và thông tin tài liệu. Chức năng mở nội dung và tải tệp đang được khóa."
+                      : "Trong trạng thái Xử lý thất bại, Tư vấn viên chỉ theo dõi trạng thái để chờ Quản trị viên xử lý lại. Chức năng mở nội dung và tải tệp đang được khóa."}
                   </p>
                 </div>
               </div>

@@ -13,6 +13,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { DocumentReviewModal } from "@/components/documents/DocumentReviewModal";
 import { DocumentChangeReviewModal } from "@/components/documents/DocumentChangeReviewModal";
+import { DocumentUpdateRequestModal } from "@/components/documents/DocumentUpdateRequestModal";
+import { DocumentUploadModal } from "@/components/documents/DocumentUploadModal";
 import {
   DocumentLifecycleBadge,
   DocumentProcessingBadge,
@@ -22,6 +24,7 @@ import {
 import { documentService } from "@/services/document.service";
 import { ApiClientError } from "@/lib/api/api-error";
 import type {
+  CreateDocumentUpdateRequestPayload,
   DocumentItem,
   DocumentRagRequestResponse,
   DocumentLifecycleStatus,
@@ -59,6 +62,13 @@ export function AdminDocumentsView() {
   const [isRequestsLoading, setIsRequestsLoading] = useState(true);
   const [requestsError, setRequestsError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [draftToEdit, setDraftToEdit] = useState<DocumentItem | null>(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const savingDraftRef = useRef(false);
+  const retryingRef = useRef(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [lifecycleFilter, setLifecycleFilter] = useState<
@@ -282,6 +292,81 @@ export function AdminDocumentsView() {
     await reloadAfterConflict();
   };
 
+  const handleSaveDraft = async (payload: CreateDocumentUpdateRequestPayload) => {
+    if (!draftToEdit || savingDraftRef.current) return;
+    savingDraftRef.current = true;
+    setIsSavingDraft(true);
+    setDraftError(null);
+    try {
+      await documentService.updateDraft(draftToEdit.documentId, payload);
+      setDraftToEdit(null);
+      await fetchDocuments();
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 409) {
+        setDraftToEdit(null);
+        await reloadAfterConflict();
+      } else {
+        setDraftError("Không thể lưu bản nháp. Vui lòng thử lại.");
+      }
+    } finally {
+      savingDraftRef.current = false;
+      setIsSavingDraft(false);
+    }
+  };
+
+  const renderEditDraft = (doc: DocumentItem) => {
+    if (doc.lifecycleStatus !== "DRAFT" || doc.ragStatus !== "NOT_INDEXED" ||
+        isRequestsLoading || requestsError ||
+        requests.some((request) => request.documentId === doc.documentId && request.status === "PENDING")) {
+      return null;
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraftError(null);
+          setDraftToEdit(doc);
+        }}
+        className="mr-2 rounded border border-slate-200 px-2.5 py-1 text-xs font-medium hover:bg-slate-50"
+      >
+        Sửa bản nháp
+      </button>
+    );
+  };
+
+  const renderRetryRag = (doc: DocumentItem) => {
+    if (doc.lifecycleStatus !== "DRAFT" || doc.ragStatus !== "FAILED") return null;
+
+    return (
+      <button
+        type="button"
+        disabled={isRetrying}
+        onClick={async () => {
+          if (retryingRef.current) return;
+          retryingRef.current = true;
+          setIsRetrying(true);
+          try {
+            await documentService.retryRag(doc.documentId);
+            setBannerMessage({ text: "Đã yêu cầu xử lý lại tài liệu.", type: "success" });
+            await fetchDocuments();
+          } catch (error) {
+            if (error instanceof ApiClientError && error.status === 409) {
+              await reloadAfterConflict();
+            } else {
+              setBannerMessage({ text: "Không thể xử lý lại tài liệu.", type: "error" });
+            }
+          } finally {
+            retryingRef.current = false;
+            setIsRetrying(false);
+          }
+        }}
+        className="mr-2 rounded border border-slate-200 px-2.5 py-1 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+      >
+        Xử lý lại
+      </button>
+    );
+  };
+
   const handleApproveRequest = async (req: DocumentRagRequestResponse) => {
     const targetDoc = documentMap.get(req.documentId);
     const effectiveLifecycle =
@@ -293,7 +378,9 @@ export function AdminDocumentsView() {
               targetDoc.lifecycleStatus === "DRAFT" &&
               targetDoc.ragStatus === "NOT_INDEXED"
           )
-        : effectiveLifecycle === "ACTIVE";
+        : req.requestType === "DELETE" &&
+          effectiveLifecycle === "ACTIVE" &&
+          (targetDoc?.ragStatus ?? req.documentRagStatus) === "READY";
     if (
       submittingDecisionRef.current ||
       req.status !== "PENDING" ||
@@ -317,9 +404,7 @@ export function AdminDocumentsView() {
       }
       setReviewTarget(null);
       const successText =
-        req.requestType === "UPDATE"
-          ? `Đã duyệt yêu cầu cập nhật tài liệu "${req.documentTitle}".`
-          : req.requestType === "DELETE"
+        req.requestType === "DELETE"
             ? `Đã duyệt yêu cầu ngừng sử dụng tài liệu "${req.documentTitle}". Tài liệu đã chuyển sang Lưu trữ.`
             : "Đã duyệt yêu cầu. Tài liệu đang được xử lý để Chatbot sử dụng.";
       reloadSeqRef.current += 1;
@@ -469,6 +554,13 @@ export function AdminDocumentsView() {
               Quản lý tài liệu và xét duyệt các yêu cầu từ Tư vấn viên.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsUploadOpen(true)}
+            className="rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
+          >
+            Tải tài liệu
+          </button>
           <button
             type="button"
             disabled={isRefreshing || isDocumentsLoading || isRequestsLoading}
@@ -653,6 +745,8 @@ export function AdminDocumentsView() {
                         <span className="text-slate-500">
                           Người tải: {doc.uploadedByName || "—"}
                         </span>
+                        {renderEditDraft(doc)}
+                        {renderRetryRag(doc)}
                         <button
                           type="button"
                           onClick={() => handleOpenDocumentView(doc)}
@@ -741,6 +835,8 @@ export function AdminDocumentsView() {
                               {doc.uploadedByName || "—"}
                             </td>
                             <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                              {renderEditDraft(doc)}
+                              {renderRetryRag(doc)}
                               <button
                                 type="button"
                                 onClick={() => handleOpenDocumentView(doc)}
@@ -911,6 +1007,25 @@ export function AdminDocumentsView() {
       </div>
 
       {/* Modal Xem trước & Xét duyệt tài liệu ADD / Xem chi tiết */}
+      <DocumentUpdateRequestModal
+        open={draftToEdit !== null}
+        document={draftToEdit}
+        isSubmitting={isSavingDraft}
+        errorMessage={draftError}
+        onClose={() => {
+          if (!isSavingDraft) setDraftToEdit(null);
+        }}
+        onSubmit={handleSaveDraft}
+      />
+      <DocumentUploadModal
+        open={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUploadSuccess={() => {
+          setIsUploadOpen(false);
+          setBannerMessage({ text: "Đã tải tài liệu và chuyển sang xử lý RAG.", type: "success" });
+          void fetchDocuments();
+        }}
+      />
       <DocumentReviewModal
         open={reviewTarget !== null && !isChangeRequestReview}
         request={activeReviewRequest}

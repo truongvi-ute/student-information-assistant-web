@@ -72,8 +72,8 @@ export interface DocumentRagRequestResponse {
   documentTitle: string;
   currentDescription?: string | null;
   currentAllowDownload?: boolean;
-  documentLifecycleStatus?: DocumentLifecycleStatus;
-  documentRagStatus?: DocumentRagStatus;
+  documentLifecycleStatus?: DocumentLifecycleStatus | null;
+  documentRagStatus?: DocumentRagStatus | null;
   requestedByName: string;
   reviewedByName?: string | null;
   requestType: DocumentRequestType;

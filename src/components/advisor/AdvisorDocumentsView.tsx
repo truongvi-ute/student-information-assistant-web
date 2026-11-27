@@ -12,11 +12,13 @@ import {
   Edit3,
   Archive,
   ChevronDown,
+  Eye,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { DocumentUploadModal } from "@/components/documents/DocumentUploadModal";
 import { DocumentUpdateRequestModal } from "@/components/documents/DocumentUpdateRequestModal";
 import { DocumentDeleteRequestModal } from "@/components/documents/DocumentDeleteRequestModal";
+import { DocumentReviewModal } from "@/components/documents/DocumentReviewModal";
 import {
   DocumentLifecycleBadge,
   DocumentProcessingBadge,
@@ -311,6 +313,9 @@ export function AdvisorDocumentsView() {
   const [expandedRequestIds, setExpandedRequestIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [viewingDocumentId, setViewingDocumentId] = useState<string | null>(
+    null
+  );
   const isMountedRef = useRef(true);
   const reloadSeqRef = useRef(0);
 
@@ -448,6 +453,26 @@ export function AdvisorDocumentsView() {
     }
     return map;
   }, [documents]);
+
+  const activeViewingDocument = useMemo(
+    () => (viewingDocumentId ? documentMap.get(viewingDocumentId) ?? null : null),
+    [documentMap, viewingDocumentId]
+  );
+
+  const handleViewerAccessForbidden = useCallback(async () => {
+    const seq = ++reloadSeqRef.current;
+    const [docOk, reqOk] = await Promise.all([
+      fetchDocuments(),
+      fetchRequests(),
+    ]);
+    if (!isMountedRef.current || reloadSeqRef.current !== seq) return;
+    if (docOk && reqOk) {
+      setBannerMessage({
+        text: "Trạng thái hoặc quyền truy cập tài liệu đã thay đổi. Danh sách đã được đồng bộ lại.",
+        type: "info",
+      });
+    }
+  }, [fetchDocuments, fetchRequests]);
 
   const filteredDocuments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -601,7 +626,7 @@ export function AdvisorDocumentsView() {
     }
   };
 
-  const handleSubmitUpdateRequest = async (
+  const handleSaveDraft = async (
     payload: CreateDocumentUpdateRequestPayload
   ) => {
     if (!editingUpdateDoc || submittingUpdateRef.current) return;
@@ -609,7 +634,7 @@ export function AdvisorDocumentsView() {
     const targetDoc = editingUpdateDoc;
     if (!isOwnedByCurrentAdvisor(targetDoc)) {
       setUpdateModalError(
-        "Bạn chỉ có thể gửi yêu cầu cập nhật cho tài liệu do chính mình tải lên."
+        "Bạn chỉ có thể sửa bản nháp do chính mình tải lên."
       );
       return;
     }
@@ -619,11 +644,11 @@ export function AdvisorDocumentsView() {
     setUpdateModalError(null);
 
     try {
-      await documentService.createUpdateRequest(targetDoc.documentId, payload);
+      await documentService.updateDraft(targetDoc.documentId, payload);
       setEditingUpdateDoc(null);
       reloadSeqRef.current += 1;
       setBannerMessage({
-        text: "Đã gửi yêu cầu cập nhật. Tài liệu vẫn giữ nguyên cho đến khi được duyệt.",
+        text: "Đã lưu thông tin bản nháp.",
         type: "success",
       });
       await Promise.all([fetchRequests(), fetchDocuments()]);
@@ -634,13 +659,13 @@ export function AdvisorDocumentsView() {
           await reloadAfterConflict();
         } else if (err.status === 403) {
           setUpdateModalError(
-            "Bạn chỉ có thể gửi yêu cầu cập nhật cho tài liệu do chính mình tải lên."
+            "Bạn chỉ có thể sửa bản nháp do chính mình tải lên."
           );
         } else if (err.status === 404) {
           setUpdateModalError("Không tìm thấy thông tin tài liệu.");
         } else {
           setUpdateModalError(
-            err.message || "Gửi yêu cầu cập nhật thất bại. Vui lòng thử lại."
+            err.message || "Lưu bản nháp thất bại. Vui lòng thử lại."
           );
         }
       } else if (err instanceof Error) {
@@ -672,11 +697,18 @@ export function AdvisorDocumentsView() {
     setDeleteModalError(null);
 
     try {
-      await documentService.createDeleteRequest(targetDoc.documentId);
+      const isDraft = targetDoc.lifecycleStatus === "DRAFT";
+      if (isDraft) {
+        await documentService.deleteDraft(targetDoc.documentId);
+      } else {
+        await documentService.createDeleteRequest(targetDoc.documentId);
+      }
       setConfirmingDeleteDoc(null);
       reloadSeqRef.current += 1;
       setBannerMessage({
-        text: "Đã gửi yêu cầu ngừng sử dụng. Tài liệu vẫn hoạt động cho đến khi được duyệt.",
+        text: isDraft
+          ? "Đã xóa bản nháp."
+          : "Đã gửi yêu cầu ngừng sử dụng. Tài liệu vẫn hoạt động cho đến khi được duyệt.",
         type: "success",
       });
       await Promise.all([fetchRequests(), fetchDocuments()]);
@@ -763,84 +795,152 @@ export function AdvisorDocumentsView() {
     const summary = summarizeDocumentRequests(requests, doc.documentId);
     const isOwner = isOwnedByCurrentAdvisor(doc);
 
-    const canSubmitAdd =
-      isOwner &&
-      !isRequestsLoading &&
-      !requestsError &&
+    if (
       doc.lifecycleStatus === "DRAFT" &&
-      doc.ragStatus === "NOT_INDEXED" &&
-      !summary.hasPendingRequest &&
-      !summary.hasApprovedAddRequest;
+      (doc.ragStatus === "PROCESSING" || doc.ragStatus === "FAILED")
+    ) {
+      return fullWidth ? (
+        <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          {doc.ragStatus === "PROCESSING"
+            ? "Đang xử lý RAG · Chỉ theo dõi trạng thái"
+            : "Xử lý RAG thất bại · Chờ Quản trị viên xử lý lại"}
+        </p>
+      ) : (
+        <span className="text-xs text-slate-500">
+          {doc.ragStatus === "PROCESSING"
+            ? "Chỉ theo dõi trạng thái"
+            : "Chờ Quản trị viên xử lý lại"}
+        </span>
+      );
+    }
 
-    const canProposeActiveChanges =
-      isOwner &&
-      !isRequestsLoading &&
-      !requestsError &&
-      doc.lifecycleStatus === "ACTIVE" &&
-      !summary.hasPendingRequest;
+    if (doc.lifecycleStatus === "ACTIVE" && doc.ragStatus === "READY") {
+      const canProposeActiveChanges =
+        isOwner &&
+        !isRequestsLoading &&
+        !requestsError &&
+        !summary.hasPendingRequest;
 
-    if (canProposeActiveChanges) {
       return (
         <div
           className={
             fullWidth
-              ? "grid grid-cols-2 gap-2 pt-1"
+              ? canProposeActiveChanges
+                ? "grid grid-cols-2 gap-2 pt-1"
+                : "pt-1"
               : "inline-flex items-center justify-end gap-1.5"
           }
         >
           <button
             type="button"
-            onClick={() => {
-              setUpdateModalError(null);
-              setEditingUpdateDoc(doc);
-            }}
-            className={`inline-flex items-center justify-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-700 ${
+            onClick={() => setViewingDocumentId(doc.documentId)}
+            className={`inline-flex items-center justify-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 ${
               fullWidth ? "w-full" : ""
             }`}
           >
-            <Edit3 className="h-3 w-3 shrink-0" />
-            <span>Cập nhật</span>
+            <Eye className="h-3.5 w-3.5 shrink-0" />
+            <span>Xem</span>
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setDeleteModalError(null);
-              setConfirmingDeleteDoc(doc);
-            }}
-            className={`inline-flex items-center justify-center gap-1 rounded border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 ${
-              fullWidth ? "w-full" : ""
-            }`}
-          >
-            <Archive className="h-3 w-3 shrink-0" />
-            <span>Ngừng sử dụng</span>
-          </button>
+          {canProposeActiveChanges && (
+            <button
+              type="button"
+              onClick={() => {
+                setDeleteModalError(null);
+                setConfirmingDeleteDoc(doc);
+              }}
+              className={`inline-flex items-center justify-center gap-1 rounded border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 ${
+                fullWidth ? "w-full" : ""
+              }`}
+            >
+              <Archive className="h-3 w-3 shrink-0" />
+              <span>Ngừng sử dụng</span>
+            </button>
+          )}
         </div>
       );
     }
 
-    if (!canSubmitAdd) {
+    const isOwnNotIndexedDraft =
+      isOwner &&
+      doc.lifecycleStatus === "DRAFT" &&
+      doc.ragStatus === "NOT_INDEXED";
+
+    if (!isOwnNotIndexedDraft) {
       return fullWidth ? null : <span className="text-xs text-slate-400">—</span>;
     }
 
+    const canSubmitAdd =
+      !isRequestsLoading &&
+      !requestsError &&
+      !summary.hasPendingRequest &&
+      !summary.hasApprovedAddRequest;
+
     return (
-      <button
-        type="button"
-        onClick={() => {
-          setAddModalError(null);
-          setConfirmingAdd({
-            doc,
-            previousRejectedRequest: summary.latestRejectedAddRequest,
-          });
-        }}
-        className={`inline-flex items-center justify-center gap-1.5 rounded bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 ${
-          fullWidth ? "w-full" : ""
-        }`}
+      <div
+        className={
+          fullWidth
+            ? "flex flex-col gap-2 pt-1"
+            : "inline-flex flex-wrap justify-end gap-1.5"
+        }
       >
-        <Send className="h-3 w-3" />
-        <span>
-          {summary.latestRejectedAddRequest ? "Gửi lại duyệt" : "Gửi duyệt"}
-        </span>
-      </button>
+        <button
+          type="button"
+          onClick={() => setViewingDocumentId(doc.documentId)}
+          className={`inline-flex items-center justify-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 ${
+            fullWidth ? "w-full" : ""
+          }`}
+        >
+          <Eye className="h-3.5 w-3.5 shrink-0" />
+          <span>Xem</span>
+        </button>
+        {canSubmitAdd && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setUpdateModalError(null);
+                setEditingUpdateDoc(doc);
+              }}
+              className={`inline-flex items-center justify-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-700 ${
+                fullWidth ? "w-full" : ""
+              }`}
+            >
+              <Edit3 className="h-3 w-3 shrink-0" />
+              <span>Sửa bản nháp</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDeleteModalError(null);
+                setConfirmingDeleteDoc(doc);
+              }}
+              className={`rounded border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 ${
+                fullWidth ? "w-full" : ""
+              }`}
+            >
+              Xóa bản nháp
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAddModalError(null);
+                setConfirmingAdd({
+                  doc,
+                  previousRejectedRequest: summary.latestRejectedAddRequest,
+                });
+              }}
+              className={`inline-flex items-center justify-center gap-1.5 rounded bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 ${
+                fullWidth ? "w-full" : ""
+              }`}
+            >
+              <Send className="h-3 w-3" />
+              <span>
+                {summary.latestRejectedAddRequest ? "Gửi lại duyệt" : "Gửi duyệt"}
+              </span>
+            </button>
+          </>
+        )}
+      </div>
     );
   };
 
@@ -1494,7 +1594,7 @@ export function AdvisorDocumentsView() {
             setUpdateModalError(null);
           }
         }}
-        onSubmit={handleSubmitUpdateRequest}
+        onSubmit={handleSaveDraft}
       />
 
       {/* Modal Yêu cầu ngừng sử dụng tài liệu */}
@@ -1510,6 +1610,19 @@ export function AdvisorDocumentsView() {
           }
         }}
         onConfirm={handleConfirmSendDeleteRequest}
+      />
+
+      {/* Modal Xem chi tiết tài liệu (khóa nội dung khi PROCESSING / FAILED) */}
+      <DocumentReviewModal
+        open={viewingDocumentId !== null}
+        request={null}
+        document={activeViewingDocument}
+        isDocumentLoading={isDocumentsLoading}
+        documentLoadError={documentsError}
+        onRetryLoadDocument={() => void fetchDocuments()}
+        lockProcessingAndFailedContent={true}
+        onAccessForbidden={handleViewerAccessForbidden}
+        onClose={() => setViewingDocumentId(null)}
       />
     </>
   );

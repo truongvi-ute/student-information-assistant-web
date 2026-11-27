@@ -43,7 +43,11 @@ export const documentService = {
   async getDocuments(): Promise<DocumentResponse[]> {
     const docs = await apiClient.get<DocumentResponse[]>("/documents");
     for (const doc of docs) {
-      if (doc.lifecycleStatus === "ARCHIVED") {
+      if (
+        doc.lifecycleStatus === "ARCHIVED" ||
+        (doc.lifecycleStatus === "DRAFT" &&
+          (doc.ragStatus === "PROCESSING" || doc.ragStatus === "FAILED"))
+      ) {
         previewCache.delete(doc.documentId);
       }
     }
@@ -58,19 +62,19 @@ export const documentService = {
   },
 
   /**
-   * Advisor gửi đề xuất cập nhật metadata tài liệu (POST /api/document-requests/documents/{documentId}/update).
+   * Advisor lưu thông tin bản nháp trước khi gửi duyệt.
    */
-  async createUpdateRequest(
+  async updateDraft(
     documentId: string,
     payload: CreateDocumentUpdateRequestPayload
-  ): Promise<string> {
+  ): Promise<void> {
     const normalizedPayload: CreateDocumentUpdateRequestPayload = {
       title: payload.title.trim(),
       description: normalizeOptionalDescription(payload.description),
       allowDownload: Boolean(payload.allowDownload),
     };
-    return apiClient.post<string>(
-      `/document-requests/documents/${encodeURIComponent(documentId)}/update`,
+    return apiClient.put<void>(
+      `/documents/${encodeURIComponent(documentId)}/draft`,
       normalizedPayload
     );
   },
@@ -84,8 +88,17 @@ export const documentService = {
     );
   },
 
+  async deleteDraft(documentId: string): Promise<void> {
+    await apiClient.delete<void>(`/documents/${encodeURIComponent(documentId)}/draft`);
+    previewCache.delete(documentId);
+  },
+
   evictDocumentPreviewCache(documentId: string): void {
     previewCache.delete(documentId);
+  },
+
+  async retryRag(documentId: string): Promise<void> {
+    await apiClient.post<void>(`/document-requests/documents/${encodeURIComponent(documentId)}/retry-rag`);
   },
 
   /**

@@ -215,10 +215,10 @@ function DocumentUpdateRequestModalContent({
               id="update-document-request-title"
               className="text-base font-semibold text-slate-900"
             >
-              Yêu cầu cập nhật tài liệu
+              Sửa bản nháp
             </h3>
             <p className="mt-0.5 text-[11px] text-slate-500">
-              Tài liệu vẫn giữ nguyên cho đến khi Quản trị viên duyệt.
+              Lưu thông tin bản nháp trước khi gửi duyệt.
             </p>
           </div>
           <button
@@ -226,7 +226,7 @@ function DocumentUpdateRequestModalContent({
             type="button"
             onClick={handleRequestClose}
             disabled={isSubmitting}
-            aria-label="Đóng hộp thoại yêu cầu cập nhật"
+            aria-label="Đóng hộp thoại sửa bản nháp"
             className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
           >
             <X className="h-4 w-4" />
@@ -348,7 +348,7 @@ function DocumentUpdateRequestModalContent({
             <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50/80 p-2.5 text-[11px] text-amber-900">
               {isClearingDescription && (
                 <p>
-                  <span className="font-semibold">Xóa mô tả:</span> Mô tả hiện tại sẽ được xóa sau khi Quản trị viên duyệt.
+                  <span className="font-semibold">Xóa mô tả:</span> Mô tả hiện tại sẽ được xóa khi lưu.
                 </p>
               )}
               {isChangingAllowDownload && (
@@ -363,7 +363,7 @@ function DocumentUpdateRequestModalContent({
 
           {!hasChanges && !activeError && (
             <p className="text-[11px] text-slate-500">
-              Thay đổi ít nhất một thông tin (tên tài liệu, mô tả hoặc quyền tải) để gửi yêu cầu.
+              Thay đổi ít nhất một thông tin (tên tài liệu, mô tả hoặc quyền tải) để lưu.
             </p>
           )}
 
@@ -373,7 +373,7 @@ function DocumentUpdateRequestModalContent({
               className="space-y-2.5 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950"
             >
               <p className="font-medium">
-                Bạn có thay đổi chưa gửi. Bạn muốn bỏ các thay đổi đang nhập?
+                Bạn có thay đổi chưa lưu. Bạn muốn bỏ các thay đổi đang nhập?
               </p>
               <div className="flex flex-wrap justify-end gap-2">
                 <button
@@ -409,7 +409,7 @@ function DocumentUpdateRequestModalContent({
                 className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                <span>Gửi yêu cầu</span>
+                <span>Lưu bản nháp</span>
               </button>
             </div>
           )}

@@ -59,6 +59,7 @@ function DocumentDeleteRequestModalContent({
   onClose,
   onConfirm,
 }: DocumentDeleteRequestModalContentProps) {
+  const isDraft = doc.lifecycleStatus === "DRAFT";
   const modalRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -139,7 +140,7 @@ function DocumentDeleteRequestModalContent({
             id="delete-document-request-title"
             className="text-base font-semibold text-slate-900"
           >
-            Yêu cầu ngừng sử dụng tài liệu
+            {isDraft ? "Xóa bản nháp" : "Yêu cầu ngừng sử dụng tài liệu"}
           </h3>
           <button
             ref={closeButtonRef}
@@ -148,7 +149,7 @@ function DocumentDeleteRequestModalContent({
               if (!isSubmitting) onClose();
             }}
             disabled={isSubmitting}
-            aria-label="Đóng hộp thoại yêu cầu ngừng sử dụng"
+            aria-label="Đóng hộp thoại"
             className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
           >
             <X className="h-4 w-4" />
@@ -172,10 +173,14 @@ function DocumentDeleteRequestModalContent({
             />
             <div className="space-y-1 leading-relaxed">
               <p className="font-semibold">
-                Tài liệu vẫn hoạt động cho đến khi Quản trị viên duyệt.
+                {isDraft
+                  ? "Bản nháp và tệp gốc sẽ bị xóa vĩnh viễn."
+                  : "Tài liệu vẫn hoạt động cho đến khi Quản trị viên duyệt."}
               </p>
               <p className="text-amber-800">
-                Sau khi duyệt, tài liệu sẽ được lưu trữ và không thể mở hoặc tải từ kho. Lịch sử xét duyệt vẫn được giữ.
+                {isDraft
+                  ? "Lịch sử yêu cầu bị từ chối vẫn được giữ."
+                  : "Sau khi duyệt, tài liệu sẽ được lưu trữ và không thể mở hoặc tải từ kho. Lịch sử xét duyệt vẫn được giữ."}
               </p>
             </div>
           </div>
@@ -226,7 +231,7 @@ function DocumentDeleteRequestModalContent({
             className="inline-flex items-center gap-1.5 rounded bg-red-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
             {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            <span>Gửi yêu cầu</span>
+            <span>{isDraft ? "Xóa bản nháp" : "Gửi yêu cầu"}</span>
           </button>
         </div>
       </div>
