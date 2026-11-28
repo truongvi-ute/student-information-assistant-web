@@ -449,10 +449,12 @@ export function DocumentHighlightViewerModal({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
+  const markdownContent = docContent?.markdownContent;
+
   const blocks = useMemo(() => {
-    if (isPdf || !docContent?.markdownContent) return [];
-    return buildHighlightedBlocks(docContent.markdownContent, hitChunks, focusedChunk);
-  }, [isPdf, docContent?.markdownContent, hitChunks, focusedChunk]);
+    if (isPdf || !markdownContent) return [];
+    return buildHighlightedBlocks(markdownContent, hitChunks, focusedChunk);
+  }, [isPdf, markdownContent, hitChunks, focusedChunk]);
 
   const targetBlockIndex = useMemo(() => {
     const focusedIdx = blocks.findIndex((b) => b.isFocused);
