@@ -49,7 +49,6 @@ export interface CreateAiConversationRequest {
 export interface SendAiMessageRequest {
   question: string;
   topK?: number;
-  filenameFilter?: string;
 }
 
 export interface ChatbotMessage {
