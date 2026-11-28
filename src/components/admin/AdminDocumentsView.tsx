@@ -14,7 +14,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { DocumentReviewModal } from "@/components/documents/DocumentReviewModal";
 import { DocumentChangeReviewModal } from "@/components/documents/DocumentChangeReviewModal";
 import { DocumentUpdateRequestModal } from "@/components/documents/DocumentUpdateRequestModal";
-import { DocumentUploadModal } from "@/components/documents/DocumentUploadModal";
 import {
   DocumentLifecycleBadge,
   DocumentProcessingBadge,
@@ -62,7 +61,6 @@ export function AdminDocumentsView() {
   const [isRequestsLoading, setIsRequestsLoading] = useState(true);
   const [requestsError, setRequestsError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [draftToEdit, setDraftToEdit] = useState<DocumentItem | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
@@ -556,13 +554,6 @@ export function AdminDocumentsView() {
           </div>
           <button
             type="button"
-            onClick={() => setIsUploadOpen(true)}
-            className="rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
-          >
-            Tải tài liệu
-          </button>
-          <button
-            type="button"
             disabled={isRefreshing || isDocumentsLoading || isRequestsLoading}
             onClick={() => void handleRefresh()}
             className="inline-flex self-start items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 disabled:opacity-50 sm:self-auto"
@@ -1016,15 +1007,6 @@ export function AdminDocumentsView() {
           if (!isSavingDraft) setDraftToEdit(null);
         }}
         onSubmit={handleSaveDraft}
-      />
-      <DocumentUploadModal
-        open={isUploadOpen}
-        onClose={() => setIsUploadOpen(false)}
-        onUploadSuccess={() => {
-          setIsUploadOpen(false);
-          setBannerMessage({ text: "Đã tải tài liệu và chuyển sang xử lý RAG.", type: "success" });
-          void fetchDocuments();
-        }}
       />
       <DocumentReviewModal
         open={reviewTarget !== null && !isChangeRequestReview}
