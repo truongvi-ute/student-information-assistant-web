@@ -1,5 +1,7 @@
 import { apiClient, type BlobDownloadResult } from "@/lib/api/api-client";
+import { ApiClientError } from "@/lib/api/api-error";
 import type {
+  CreateDocumentUpdateRequestPayload,
   DocumentContentResponse,
   DocumentRagRequestResponse,
   DocumentResponse,
@@ -7,6 +9,7 @@ import type {
   RejectDocumentRagRequestPayload,
   UploadDocumentPayload,
 } from "@/types/document";
+import { normalizeOptionalDescription } from "@/validations/document.validation";
 
 const PREVIEW_CACHE_LIMIT = 5;
 const previewCache = new Map<string, BlobDownloadResult>();
@@ -38,7 +41,17 @@ export const documentService = {
    * Lấy danh sách tài liệu từ cơ sở dữ liệu (GET /api/documents).
    */
   async getDocuments(): Promise<DocumentResponse[]> {
-    return apiClient.get<DocumentResponse[]>("/documents");
+    const docs = await apiClient.get<DocumentResponse[]>("/documents");
+    for (const doc of docs) {
+      if (
+        doc.lifecycleStatus === "ARCHIVED" ||
+        (doc.lifecycleStatus === "DRAFT" &&
+          (doc.ragStatus === "PROCESSING" || doc.ragStatus === "FAILED"))
+      ) {
+        previewCache.delete(doc.documentId);
+      }
+    }
+    return docs;
   },
 
   /**
@@ -46,6 +59,46 @@ export const documentService = {
    */
   async createAddRequest(documentId: string): Promise<string> {
     return apiClient.post<string>(`/document-requests/documents/${documentId}`);
+  },
+
+  /**
+   * Advisor lưu thông tin bản nháp trước khi gửi duyệt.
+   */
+  async updateDraft(
+    documentId: string,
+    payload: CreateDocumentUpdateRequestPayload
+  ): Promise<void> {
+    const normalizedPayload: CreateDocumentUpdateRequestPayload = {
+      title: payload.title.trim(),
+      description: normalizeOptionalDescription(payload.description),
+      allowDownload: Boolean(payload.allowDownload),
+    };
+    return apiClient.put<void>(
+      `/documents/${encodeURIComponent(documentId)}/draft`,
+      normalizedPayload
+    );
+  },
+
+  /**
+   * Advisor gửi đề xuất ngừng sử dụng tài liệu (POST /api/document-requests/documents/{documentId}/delete).
+   */
+  async createDeleteRequest(documentId: string): Promise<string> {
+    return apiClient.post<string>(
+      `/document-requests/documents/${encodeURIComponent(documentId)}/delete`
+    );
+  },
+
+  async deleteDraft(documentId: string): Promise<void> {
+    await apiClient.delete<void>(`/documents/${encodeURIComponent(documentId)}/draft`);
+    previewCache.delete(documentId);
+  },
+
+  evictDocumentPreviewCache(documentId: string): void {
+    previewCache.delete(documentId);
+  },
+
+  async retryRag(documentId: string): Promise<void> {
+    await apiClient.post<void>(`/document-requests/documents/${encodeURIComponent(documentId)}/retry-rag`);
   },
 
   /**
@@ -124,10 +177,21 @@ export const documentService = {
       return cached;
     }
 
-    const result = await apiClient.getBlob(
-      `/documents/${encodeURIComponent(documentId)}/preview`,
-      options
-    );
+    let result: BlobDownloadResult;
+    try {
+      result = await apiClient.getBlob(
+        `/documents/${encodeURIComponent(documentId)}/preview`,
+        options
+      );
+    } catch (err: unknown) {
+      if (
+        err instanceof ApiClientError &&
+        (err.status === 403 || err.status === 404)
+      ) {
+        previewCache.delete(documentId);
+      }
+      throw err;
+    }
 
     if (previewCache.size >= PREVIEW_CACHE_LIMIT) {
       const oldestKey = previewCache.keys().next().value;

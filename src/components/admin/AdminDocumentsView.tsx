@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { DocumentReviewModal } from "@/components/documents/DocumentReviewModal";
+import { DocumentChangeReviewModal } from "@/components/documents/DocumentChangeReviewModal";
+import { DocumentUpdateRequestModal } from "@/components/documents/DocumentUpdateRequestModal";
 import {
   DocumentLifecycleBadge,
   DocumentProcessingBadge,
@@ -21,6 +23,7 @@ import {
 import { documentService } from "@/services/document.service";
 import { ApiClientError } from "@/lib/api/api-error";
 import type {
+  CreateDocumentUpdateRequestPayload,
   DocumentItem,
   DocumentRagRequestResponse,
   DocumentLifecycleStatus,
@@ -58,6 +61,12 @@ export function AdminDocumentsView() {
   const [isRequestsLoading, setIsRequestsLoading] = useState(true);
   const [requestsError, setRequestsError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [draftToEdit, setDraftToEdit] = useState<DocumentItem | null>(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const savingDraftRef = useRef(false);
+  const retryingRef = useRef(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [lifecycleFilter, setLifecycleFilter] = useState<
@@ -66,7 +75,9 @@ export function AdminDocumentsView() {
 
   const [bannerMessage, setBannerMessage] = useState<{
     text: string;
-    type: "success" | "error";
+    type: "info" | "success" | "error";
+    loading?: boolean;
+    retryConflict?: boolean;
   } | null>(null);
 
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
@@ -75,40 +86,72 @@ export function AdminDocumentsView() {
   >(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const submittingDecisionRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const reloadSeqRef = useRef(0);
 
-  const fetchDocuments = useCallback(async () => {
+  const fetchDocuments = useCallback(async (): Promise<boolean> => {
     try {
       setIsDocumentsLoading(true);
       setDocumentsError(null);
       const data = await documentService.getDocuments();
       setDocuments(data);
+      return true;
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         setDocumentsError(err.message);
       } else {
         setDocumentsError("Không thể tải kho tài liệu.");
       }
+      return false;
     } finally {
       setIsDocumentsLoading(false);
     }
   }, []);
 
-  const fetchPendingRequests = useCallback(async () => {
+  const fetchPendingRequests = useCallback(async (): Promise<boolean> => {
     try {
       setIsRequestsLoading(true);
       setRequestsError(null);
       const data = await documentService.getPendingRequests();
       setRequests(data);
+      return true;
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         setRequestsError(err.message);
       } else {
         setRequestsError("Không thể tải danh sách yêu cầu chờ duyệt.");
       }
+      return false;
     } finally {
       setIsRequestsLoading(false);
     }
   }, []);
+
+  const reloadAfterConflict = useCallback(async () => {
+    const seq = ++reloadSeqRef.current;
+    setBannerMessage({
+      text: "Yêu cầu đã thay đổi. Đang tải lại danh sách…",
+      type: "info",
+      loading: true,
+    });
+    const [reqOk, docOk] = await Promise.all([
+      fetchPendingRequests(),
+      fetchDocuments(),
+    ]);
+    if (!isMountedRef.current || reloadSeqRef.current !== seq) return;
+    if (reqOk && docOk) {
+      setBannerMessage({
+        text: "Yêu cầu đã thay đổi trước đó. Danh sách đã được cập nhật.",
+        type: "info",
+      });
+    } else {
+      setBannerMessage({
+        text: "Yêu cầu đã thay đổi. Chưa tải lại được danh sách.",
+        type: "error",
+        retryConflict: true,
+      });
+    }
+  }, [fetchDocuments, fetchPendingRequests]);
 
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
@@ -119,6 +162,13 @@ export function AdminDocumentsView() {
       setIsRefreshing(false);
     }
   }, [fetchDocuments, fetchPendingRequests, isRefreshing]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -237,27 +287,104 @@ export function AdminDocumentsView() {
   const handleReviewConflict = async () => {
     setReviewTarget(null);
     setDecisionError(null);
-    setBannerMessage({
-      text: "Yêu cầu này đã thay đổi trạng thái hoặc đã được xử lý trước đó. Đã làm mới dữ liệu.",
-      type: "error",
-    });
-    await Promise.all([fetchPendingRequests(), fetchDocuments()]);
+    await reloadAfterConflict();
+  };
+
+  const handleSaveDraft = async (payload: CreateDocumentUpdateRequestPayload) => {
+    if (!draftToEdit || savingDraftRef.current) return;
+    savingDraftRef.current = true;
+    setIsSavingDraft(true);
+    setDraftError(null);
+    try {
+      await documentService.updateDraft(draftToEdit.documentId, payload);
+      setDraftToEdit(null);
+      await fetchDocuments();
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 409) {
+        setDraftToEdit(null);
+        await reloadAfterConflict();
+      } else {
+        setDraftError("Không thể lưu bản nháp. Vui lòng thử lại.");
+      }
+    } finally {
+      savingDraftRef.current = false;
+      setIsSavingDraft(false);
+    }
+  };
+
+  const renderEditDraft = (doc: DocumentItem) => {
+    if (doc.lifecycleStatus !== "DRAFT" || doc.ragStatus !== "NOT_INDEXED" ||
+        isRequestsLoading || requestsError ||
+        requests.some((request) => request.documentId === doc.documentId && request.status === "PENDING")) {
+      return null;
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraftError(null);
+          setDraftToEdit(doc);
+        }}
+        className="mr-2 rounded border border-slate-200 px-2.5 py-1 text-xs font-medium hover:bg-slate-50"
+      >
+        Sửa bản nháp
+      </button>
+    );
+  };
+
+  const renderRetryRag = (doc: DocumentItem) => {
+    if (doc.lifecycleStatus !== "DRAFT" || doc.ragStatus !== "FAILED") return null;
+
+    return (
+      <button
+        type="button"
+        disabled={isRetrying}
+        onClick={async () => {
+          if (retryingRef.current) return;
+          retryingRef.current = true;
+          setIsRetrying(true);
+          try {
+            await documentService.retryRag(doc.documentId);
+            setBannerMessage({ text: "Đã yêu cầu xử lý lại tài liệu.", type: "success" });
+            await fetchDocuments();
+          } catch (error) {
+            if (error instanceof ApiClientError && error.status === 409) {
+              await reloadAfterConflict();
+            } else {
+              setBannerMessage({ text: "Không thể xử lý lại tài liệu.", type: "error" });
+            }
+          } finally {
+            retryingRef.current = false;
+            setIsRetrying(false);
+          }
+        }}
+        className="mr-2 rounded border border-slate-200 px-2.5 py-1 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+      >
+        Xử lý lại
+      </button>
+    );
   };
 
   const handleApproveRequest = async (req: DocumentRagRequestResponse) => {
     const targetDoc = documentMap.get(req.documentId);
-    const isEligibleForAdd = Boolean(
-      targetDoc &&
-        req.requestType === "ADD" &&
-        targetDoc.lifecycleStatus === "DRAFT" &&
-        targetDoc.ragStatus === "NOT_INDEXED"
-    );
+    const effectiveLifecycle =
+      targetDoc?.lifecycleStatus ?? req.documentLifecycleStatus;
+    const isEligibleForApproval =
+      req.requestType === "ADD"
+        ? Boolean(
+            targetDoc &&
+              targetDoc.lifecycleStatus === "DRAFT" &&
+              targetDoc.ragStatus === "NOT_INDEXED"
+          )
+        : req.requestType === "DELETE" &&
+          effectiveLifecycle === "ACTIVE" &&
+          (targetDoc?.ragStatus ?? req.documentRagStatus) === "READY";
     if (
       submittingDecisionRef.current ||
       req.status !== "PENDING" ||
       isDocumentsLoading ||
       Boolean(documentsError) ||
-      !isEligibleForAdd
+      !isEligibleForApproval
     ) {
       return;
     }
@@ -265,36 +392,44 @@ export function AdminDocumentsView() {
     submittingDecisionRef.current = true;
     setSubmittingAction("APPROVE");
     setDecisionError(null);
+    reloadSeqRef.current += 1;
     setBannerMessage(null);
 
     try {
       await documentService.approveRequest(req.id);
+      if (req.requestType === "DELETE") {
+        documentService.evictDocumentPreviewCache(req.documentId);
+      }
       setReviewTarget(null);
+      const successText =
+        req.requestType === "DELETE"
+            ? `Đã duyệt yêu cầu ngừng sử dụng tài liệu "${req.documentTitle}". Tài liệu đã chuyển sang Lưu trữ.`
+            : "Đã duyệt yêu cầu. Tài liệu đang được xử lý để Chatbot sử dụng.";
+      reloadSeqRef.current += 1;
       setBannerMessage({
-        text: `Đã phê duyệt yêu cầu cho tài liệu "${req.documentTitle}". Hệ thống đang xử lý RAG.`,
+        text: successText,
         type: "success",
       });
       await Promise.all([fetchPendingRequests(), fetchDocuments()]);
     } catch (err: unknown) {
       if (err instanceof ApiClientError) {
         if (err.status === 409) {
+          if (req.requestType === "DELETE") {
+            documentService.evictDocumentPreviewCache(req.documentId);
+          }
           setReviewTarget(null);
-          setBannerMessage({
-            text: "Yêu cầu này đã thay đổi trạng thái hoặc đã được xử lý trước đó. Đã làm mới dữ liệu.",
-            type: "error",
-          });
-          await Promise.all([fetchPendingRequests(), fetchDocuments()]);
+          await reloadAfterConflict();
         } else if (err.status === 403) {
           setDecisionError(
-            "Bạn không có quyền quản trị viên để phê duyệt yêu cầu."
+            "Bạn không có quyền quản trị viên để duyệt yêu cầu."
           );
         } else if (err.status === 404) {
           setDecisionError("Không tìm thấy yêu cầu xét duyệt.");
         } else {
-          setDecisionError(err.message || "Phê duyệt yêu cầu thất bại.");
+          setDecisionError(err.message || "Duyệt yêu cầu thất bại.");
         }
       } else {
-        setDecisionError("Đã xảy ra lỗi khi phê duyệt yêu cầu.");
+        setDecisionError("Đã xảy ra lỗi khi duyệt yêu cầu.");
       }
     } finally {
       submittingDecisionRef.current = false;
@@ -317,11 +452,13 @@ export function AdminDocumentsView() {
     submittingDecisionRef.current = true;
     setSubmittingAction("REJECT");
     setDecisionError(null);
+    reloadSeqRef.current += 1;
     setBannerMessage(null);
 
     try {
       await documentService.rejectRequest(req.id, cleanReason);
       setReviewTarget(null);
+      reloadSeqRef.current += 1;
       setBannerMessage({
         text: `Đã từ chối yêu cầu cho tài liệu "${req.documentTitle}".`,
         type: "success",
@@ -331,11 +468,7 @@ export function AdminDocumentsView() {
       if (err instanceof ApiClientError) {
         if (err.status === 409) {
           setReviewTarget(null);
-          setBannerMessage({
-            text: "Yêu cầu này đã thay đổi trạng thái hoặc đã được xử lý trước đó. Đã làm mới dữ liệu.",
-            type: "error",
-          });
-          await Promise.all([fetchPendingRequests(), fetchDocuments()]);
+          await reloadAfterConflict();
         } else if (err.status === 400) {
           setDecisionError("Lý do từ chối không được để trống.");
         } else if (err.status === 403) {
@@ -399,6 +532,13 @@ export function AdminDocumentsView() {
     ? documentMap.get(activeReviewDocumentId) ?? null
     : null;
 
+  const isChangeRequestReview = Boolean(
+    reviewTarget?.type === "REQUEST" &&
+      activeReviewRequest &&
+      (activeReviewRequest.requestType === "UPDATE" ||
+        activeReviewRequest.requestType === "DELETE")
+  );
+
   return (
     <>
       <div className="space-y-4">
@@ -409,7 +549,7 @@ export function AdminDocumentsView() {
               Kho tài liệu đào tạo
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              Quản lý tài liệu và xét duyệt các yêu cầu từ Cố vấn học tập.
+              Quản lý tài liệu và xét duyệt các yêu cầu từ Tư vấn viên.
             </p>
           </div>
           <button
@@ -431,25 +571,45 @@ export function AdminDocumentsView() {
             className={`flex items-center justify-between gap-2 rounded border px-3.5 py-2 text-xs ${
               bannerMessage.type === "success"
                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-red-200 bg-red-50 text-red-700"
+                : bannerMessage.type === "info"
+                  ? "border-amber-200 bg-amber-50 text-amber-800"
+                  : "border-red-200 bg-red-50 text-red-700"
             }`}
           >
             <div className="flex items-center gap-2">
-              {bannerMessage.type === "success" ? (
+              {bannerMessage.loading ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-amber-700" />
+              ) : bannerMessage.type === "success" ? (
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+              ) : bannerMessage.type === "info" ? (
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-700" />
               ) : (
                 <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
               )}
               <span>{bannerMessage.text}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setBannerMessage(null)}
-              aria-label="Đóng thông báo"
-              className="text-slate-400 hover:text-slate-600"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex shrink-0 items-center gap-2.5">
+              {bannerMessage.retryConflict && (
+                <button
+                  type="button"
+                  onClick={() => void reloadAfterConflict()}
+                  className="font-medium text-red-700 underline hover:text-red-800"
+                >
+                  Thử lại
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  reloadSeqRef.current += 1;
+                  setBannerMessage(null);
+                }}
+                aria-label="Đóng thông báo"
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -576,6 +736,8 @@ export function AdminDocumentsView() {
                         <span className="text-slate-500">
                           Người tải: {doc.uploadedByName || "—"}
                         </span>
+                        {renderEditDraft(doc)}
+                        {renderRetryRag(doc)}
                         <button
                           type="button"
                           onClick={() => handleOpenDocumentView(doc)}
@@ -664,6 +826,8 @@ export function AdminDocumentsView() {
                               {doc.uploadedByName || "—"}
                             </td>
                             <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                              {renderEditDraft(doc)}
+                              {renderRetryRag(doc)}
                               <button
                                 type="button"
                                 onClick={() => handleOpenDocumentView(doc)}
@@ -799,7 +963,7 @@ export function AdminDocumentsView() {
                                 />
                               </td>
                               <td className="px-3.5 py-3">
-                                <p className="font-medium text-slate-900">
+                                <p className="max-w-md font-medium text-slate-900 break-words">
                                   {req.documentTitle}
                                 </p>
                                 {renderPendingDocMeta(doc)}
@@ -833,9 +997,19 @@ export function AdminDocumentsView() {
         )}
       </div>
 
-      {/* Modal Xem trước & Xét duyệt tài liệu */}
+      {/* Modal Xem trước & Xét duyệt tài liệu ADD / Xem chi tiết */}
+      <DocumentUpdateRequestModal
+        open={draftToEdit !== null}
+        document={draftToEdit}
+        isSubmitting={isSavingDraft}
+        errorMessage={draftError}
+        onClose={() => {
+          if (!isSavingDraft) setDraftToEdit(null);
+        }}
+        onSubmit={handleSaveDraft}
+      />
       <DocumentReviewModal
-        open={reviewTarget !== null}
+        open={reviewTarget !== null && !isChangeRequestReview}
         request={activeReviewRequest}
         document={activeReviewDocument}
         isDocumentLoading={isDocumentsLoading}
@@ -848,6 +1022,30 @@ export function AdminDocumentsView() {
         onApprove={handleApproveRequest}
         onReject={handleRejectRequest}
         onReviewConflict={handleReviewConflict}
+        submittingAction={submittingAction}
+        decisionError={decisionError}
+        onClearDecisionError={() => setDecisionError(null)}
+      />
+
+      {/* Modal Đối chiếu & Xét duyệt yêu cầu UPDATE / DELETE */}
+      <DocumentChangeReviewModal
+        open={isChangeRequestReview}
+        request={activeReviewRequest}
+        document={activeReviewDocument}
+        isDocumentLoading={isDocumentsLoading}
+        documentLoadError={documentsError}
+        onRetryLoadDocument={() => void fetchDocuments()}
+        onClose={() => {
+          setReviewTarget(null);
+          setDecisionError(null);
+        }}
+        onApprove={handleApproveRequest}
+        onReject={handleRejectRequest}
+        onOpenDocumentPreview={
+          activeReviewDocument && activeReviewDocument.lifecycleStatus !== "ARCHIVED"
+            ? () => handleOpenDocumentView(activeReviewDocument)
+            : undefined
+        }
         submittingAction={submittingAction}
         decisionError={decisionError}
         onClearDecisionError={() => setDecisionError(null)}
