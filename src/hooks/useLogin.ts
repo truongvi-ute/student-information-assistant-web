@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,16 +12,20 @@ interface UseLoginOptions {
   onLoginSuccess?: () => void;
 }
 
+const subscribeNoop = () => () => {};
+const getRememberedEmailSnapshot = () => authStorage.getRememberedEmail();
+const getEmptySnapshot = () => "";
+
 export function useLogin(options?: UseLoginOptions) {
   const router = useRouter();
   const { login: completeLogin } = useAuth();
   const queryEmail = typeof router.query.email === "string" ? router.query.email : "";
   const [customIdentifier, setCustomIdentifier] = useState<string | null>(null);
-  const [rememberedEmail, setRememberedEmail] = useState("");
-
-  useEffect(() => {
-    setRememberedEmail(authStorage.getRememberedEmail());
-  }, []);
+  const rememberedEmail = useSyncExternalStore(
+    subscribeNoop,
+    getRememberedEmailSnapshot,
+    getEmptySnapshot
+  );
 
   const identifier =
     customIdentifier !== null ? customIdentifier : queryEmail || rememberedEmail;
